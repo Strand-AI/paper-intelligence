@@ -267,7 +267,12 @@ The index enables fast header lookups without re-parsing the markdown on each se
 
 ```bash
 pip install -e ".[dev]"
-pytest
+
+# Run unit tests (fast)
+pytest tests/test_markdown_parser.py
+
+# Run integration tests (slow, requires ML models)
+pytest tests/test_integration.py -v
 ```
 
 To use your local development version with MCP clients, replace `uvx paper-intelligence` with:

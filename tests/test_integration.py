@@ -1,9 +1,10 @@
 """Integration tests using a real PDF file.
 
 These tests exercise the full pipeline: convert, index, embed, search.
-Run with: pytest tests/test_integration.py -v
+They are SKIPPED in CI because they require ML model loading (slow).
 
-To skip slow tests in CI, use: pytest -m "not slow"
+Run locally with:
+    pytest tests/test_integration.py -v
 """
 
 import shutil
