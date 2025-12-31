@@ -1,12 +1,15 @@
 """Paper Intelligence MCP Server.
 
-A local MCP server for intelligent paper/PDF management with:
-- PDF to Markdown conversion using Marker
-- Local embedding/RAG database using LlamaIndex + ChromaDB
-- Markdown structure indexing
-- Unified search (grep + semantic RAG)
+Gives AI agents efficient, searchable access to PDF content by:
+- Converting PDFs to clean markdown (preserves structure, tables, images)
+- Indexing document hierarchy for section-aware context
+- Creating local embeddings for semantic search (private, no API calls)
+- Enabling hybrid search: exact text/regex + semantic similarity
 
-Each paper is self-contained in its own directory.
+Token-efficient: agents search for and retrieve only relevant sections
+instead of loading entire documents into context.
+
+Each paper is self-contained in its own directory with all artifacts.
 """
 
 from typing import Literal, Optional
@@ -16,8 +19,13 @@ from mcp.server.fastmcp import FastMCP
 # Initialize MCP server
 mcp = FastMCP(
     "paper-intelligence",
-    instructions="MCP server for intelligent paper/PDF management with RAG capabilities. "
-    "Use process_paper to convert PDFs. Each paper gets its own self-contained directory.",
+    instructions=(
+        "Process PDFs into searchable, token-efficient formats. "
+        "Use process_paper to convert a PDF (creates markdown + local embeddings). "
+        "Then use search to find relevant sections instead of reading entire documents. "
+        "Supports grep (exact/regex) and semantic (RAG) search. "
+        "Each paper gets its own self-contained directory."
+    ),
 )
 
 
