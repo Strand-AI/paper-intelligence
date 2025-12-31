@@ -1,6 +1,6 @@
 [project]
 name = "paper-intelligence"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for intelligent paper/PDF management with RAG capabilities"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-12-31
+
 ### Added
 - Changelog following Keep a Changelog format
 - Automatic GitHub Releases with changelog extraction on tag push
