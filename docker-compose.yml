@@ -1,0 +1,35 @@
+services:
+  paper-intelligence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paper-intelligence:latest
+    volumes:
+      # Mount input PDFs (read-only)
+      - ${PDF_INPUT_DIR:-~/Documents/offline_reading}:/data/input:ro
+      # Mount output directory (read-write, persistent)
+      - ${OUTPUT_DIR:-./output}:/data/output
+    environment:
+      - PAPER_INTELLIGENCE_OUTPUT=/data/output
+      # For Linux with NVIDIA GPU, uncomment below:
+      # - TORCH_DEVICE=cuda
+    # For stdio transport (default MCP mode)
+    stdin_open: true
+    tty: true
+
+  # Optional: HTTP mode for testing
+  paper-intelligence-http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paper-intelligence:latest
+    volumes:
+      - ${PDF_INPUT_DIR:-~/Documents/offline_reading}:/data/input:ro
+      - ${OUTPUT_DIR:-./output}:/data/output
+    environment:
+      - PAPER_INTELLIGENCE_OUTPUT=/data/output
+    ports:
+      - "8080:8080"
+    command: ["--http"]
+    profiles:
+      - http  # Only start with: docker compose --profile http up
