@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync --extra dev
