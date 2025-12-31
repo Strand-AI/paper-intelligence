@@ -1,7 +1,7 @@
 [project]
 name = "paper-intelligence"
 version = "0.1.1"
-description = "MCP server for intelligent paper/PDF management with RAG capabilities"
+description = "MCP server enabling AI agents to efficiently search and understand PDF documents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
