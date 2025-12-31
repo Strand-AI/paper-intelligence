@@ -36,6 +36,7 @@ dependencies = [
 Homepage = "https://github.com/Strand-AI/paper-intelligence"
 Repository = "https://github.com/Strand-AI/paper-intelligence"
 Issues = "https://github.com/Strand-AI/paper-intelligence/issues"
+Changelog = "https://github.com/Strand-AI/paper-intelligence/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

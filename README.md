@@ -2,6 +2,18 @@
 
 A local MCP (Model Context Protocol) server for intelligent paper/PDF management with RAG capabilities.
 
+## Quick Start
+
+**Claude Code CLI:**
+```bash
+claude mcp add paper-intelligence -- uvx paper-intelligence
+```
+
+**VS Code:**
+```bash
+code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence"]}'
+```
+
 ## Features
 
 - **PDF to Markdown**: Convert PDFs using [Marker](https://github.com/VikParuchuri/marker) with high accuracy
@@ -50,11 +62,32 @@ python -m paper_intelligence.server
 
 ## MCP Client Configuration
 
+### Claude Code CLI
+
+The easiest way to add the server:
+
+```bash
+claude mcp add paper-intelligence -- uvx paper-intelligence
+```
+
+Or for a local development install:
+```bash
+claude mcp add paper-intelligence -- /path/to/paper-intelligence/.venv/bin/python -m paper_intelligence.server
+```
+
+Verify installation:
+```bash
+claude mcp list
+```
+
 ### Claude Desktop
 
-Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json` on macOS/Linux or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+Add to your Claude Desktop config:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-**Using uvx (recommended after PyPI publish):**
+**Using uvx (recommended):**
 ```json
 {
   "mcpServers": {
@@ -66,28 +99,50 @@ Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json`
 }
 ```
 
-**Using local install:**
+**Using pip install:**
 ```json
 {
   "mcpServers": {
     "paper-intelligence": {
-      "command": "/path/to/paper-intelligence/.venv/bin/python",
+      "command": "python",
       "args": ["-m", "paper_intelligence.server"]
     }
   }
 }
 ```
 
-### Claude Code
+### VS Code
 
-Add to your Claude Code config (`~/.claude.json`):
+One-liner install:
+```bash
+code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence"]}'
+```
 
-**Using uvx (recommended after PyPI publish):**
+Or manually add to your User Settings (JSON) or `.vscode/mcp.json`:
+```json
+{
+  "mcp": {
+    "servers": {
+      "paper-intelligence": {
+        "command": "uvx",
+        "args": ["paper-intelligence"]
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+1. Go to **Settings → MCP → Add new MCP Server**
+2. Select `command` type
+3. Enter: `uvx paper-intelligence`
+
+Or add to your Cursor MCP config:
 ```json
 {
   "mcpServers": {
     "paper-intelligence": {
-      "type": "stdio",
       "command": "uvx",
       "args": ["paper-intelligence"]
     }
@@ -95,15 +150,15 @@ Add to your Claude Code config (`~/.claude.json`):
 }
 ```
 
-**Using local install:**
+### Windsurf
+
+Add to your Windsurf MCP configuration:
 ```json
 {
   "mcpServers": {
     "paper-intelligence": {
-      "type": "stdio",
-      "command": "/path/to/paper-intelligence/.venv/bin/python",
-      "args": ["-m", "paper_intelligence.server"],
-      "cwd": "/path/to/paper-intelligence"
+      "command": "uvx",
+      "args": ["paper-intelligence"]
     }
   }
 }
@@ -232,6 +287,37 @@ The index enables fast header lookups without re-parsing the markdown on each se
 pip install -e ".[dev]"
 pytest
 ```
+
+## Debugging
+
+Use the MCP Inspector to debug the server:
+
+```bash
+npx @modelcontextprotocol/inspector uvx paper-intelligence
+```
+
+Or for a local install:
+```bash
+npx @modelcontextprotocol/inspector python -m paper_intelligence.server
+```
+
+## Troubleshooting
+
+**Server not starting?**
+- Ensure Python 3.11+ is installed
+- Try `uvx paper-intelligence` directly to see error messages
+- Check that all dependencies installed correctly
+
+**Windows encoding issues?**
+Add to your config:
+```json
+"env": {
+  "PYTHONIOENCODING": "utf-8"
+}
+```
+
+**Claude Desktop not detecting changes?**
+Claude Desktop only reads configuration on startup. Fully restart the app after config changes.
 
 ## License
 
