@@ -70,11 +70,6 @@ The easiest way to add the server:
 claude mcp add paper-intelligence -- uvx paper-intelligence
 ```
 
-Or for a local development install:
-```bash
-claude mcp add paper-intelligence -- /path/to/paper-intelligence/.venv/bin/python -m paper_intelligence.server
-```
-
 Verify installation:
 ```bash
 claude mcp list
@@ -87,25 +82,12 @@ Add to your Claude Desktop config:
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-**Using uvx (recommended):**
 ```json
 {
   "mcpServers": {
     "paper-intelligence": {
       "command": "uvx",
       "args": ["paper-intelligence"]
-    }
-  }
-}
-```
-
-**Using pip install:**
-```json
-{
-  "mcpServers": {
-    "paper-intelligence": {
-      "command": "python",
-      "args": ["-m", "paper_intelligence.server"]
     }
   }
 }
@@ -288,17 +270,17 @@ pip install -e ".[dev]"
 pytest
 ```
 
+To use your local development version with MCP clients, replace `uvx paper-intelligence` with:
+```bash
+python -m paper_intelligence.server
+```
+
 ## Debugging
 
 Use the MCP Inspector to debug the server:
 
 ```bash
 npx @modelcontextprotocol/inspector uvx paper-intelligence
-```
-
-Or for a local install:
-```bash
-npx @modelcontextprotocol/inspector python -m paper_intelligence.server
 ```
 
 ## Troubleshooting
