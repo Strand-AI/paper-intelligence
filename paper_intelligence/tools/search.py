@@ -1,6 +1,7 @@
 """Unified search tool combining grep and RAG search.
 
 Searches within self-contained paper directories.
+Auto-processes PDFs and paper directories as needed.
 """
 
 import json
@@ -8,26 +9,173 @@ import re
 from pathlib import Path
 from typing import Literal, Optional
 
+from ..metadata import check_version_compatibility
 from ..utils.chromadb_client import RAGClient
 from ..utils.markdown_parser import MarkdownParser
 
 
-def _find_paper_dirs(search_paths: list[str]) -> list[Path]:
-    """Find all paper directories (directories containing paper.md)."""
+def _process_paper_if_needed(
+    path: Path,
+    use_llm: bool = False,
+) -> tuple[Optional[Path], Optional[str]]:
+    """Process a PDF or ensure a paper directory is fully processed.
+
+    Args:
+        path: Path to PDF file or paper directory
+        use_llm: Use LLM for PDF conversion (if processing needed)
+
+    Returns:
+        Tuple of (paper_dir, error_message). If error, paper_dir is None.
+    """
+    from .convert import convert_pdf, get_output_dir
+    from .embed import embed_document
+    from .index import index_markdown
+
+    # Handle PDF files
+    if path.is_file() and path.suffix.lower() == ".pdf":
+        paper_dir = get_output_dir(path)
+
+        # Check if already processed and compatible
+        if (paper_dir / "paper.md").exists():
+            version_info = check_version_compatibility(paper_dir)
+            if version_info["is_compatible"]:
+                # Already processed and compatible, ensure all steps complete
+                return _ensure_fully_processed(paper_dir)
+            # Version incompatible, re-process
+            # (Fall through to convert)
+
+        # Convert PDF
+        result = convert_pdf(str(path), use_llm=use_llm)
+        if not result.get("success"):
+            return None, f"PDF conversion failed: {result.get('message')}"
+        paper_dir = Path(result["output_dir"])
+
+        # Index
+        result = index_markdown(str(paper_dir / "paper.md"))
+        if not result.get("success"):
+            return None, f"Indexing failed: {result.get('message')}"
+
+        # Embed
+        result = embed_document(str(paper_dir / "paper.md"))
+        if not result.get("success"):
+            return None, f"Embedding failed: {result.get('message')}"
+
+        return paper_dir, None
+
+    # Handle paper directories
+    elif path.is_dir():
+        if (path / "paper.md").exists():
+            # Check version compatibility
+            version_info = check_version_compatibility(path)
+            if not version_info["is_compatible"]:
+                return None, (
+                    f"Paper directory {path} was processed with incompatible version "
+                    f"{version_info['processed_version']}. Please re-process the original PDF."
+                )
+            return _ensure_fully_processed(path)
+        return None, f"Not a paper directory (no paper.md): {path}"
+
+    return None, f"Not a PDF file or paper directory: {path}"
+
+
+def _ensure_fully_processed(paper_dir: Path) -> tuple[Optional[Path], Optional[str]]:
+    """Ensure a paper directory has index and embeddings.
+
+    Args:
+        paper_dir: Path to paper directory with paper.md
+
+    Returns:
+        Tuple of (paper_dir, error_message). If error, paper_dir is None.
+    """
+    from .embed import embed_document
+    from .index import index_markdown
+
+    md_path = paper_dir / "paper.md"
+
+    # Index if missing
+    if not (paper_dir / "index.json").exists():
+        result = index_markdown(str(md_path))
+        if not result.get("success"):
+            return None, f"Indexing failed: {result.get('message')}"
+
+    # Embed if missing
+    if not (paper_dir / "chroma").exists():
+        result = embed_document(str(md_path))
+        if not result.get("success"):
+            return None, f"Embedding failed: {result.get('message')}"
+
+    return paper_dir, None
+
+
+def _find_paper_dirs(
+    search_paths: list[str],
+    auto_process: bool = True,
+    use_llm: bool = False,
+) -> tuple[list[Path], list[str]]:
+    """Find all paper directories, optionally processing PDFs.
+
+    Args:
+        search_paths: List of PDF paths or paper directories
+        auto_process: Whether to auto-process PDFs and incomplete directories
+        use_llm: Use LLM for PDF conversion
+
+    Returns:
+        Tuple of (paper_dirs, processing_messages)
+    """
     paper_dirs = []
+    messages = []
+
     for path_str in search_paths:
         path = Path(path_str).expanduser().resolve()
+
+        # Handle PDF files
+        if path.is_file() and path.suffix.lower() == ".pdf":
+            if auto_process:
+                paper_dir, error = _process_paper_if_needed(path, use_llm)
+                if paper_dir:
+                    paper_dirs.append(paper_dir)
+                    messages.append(f"Processed PDF: {path.name}")
+                elif error:
+                    messages.append(error)
+            continue
+
+        # Handle paper.md files directly
         if path.is_file() and path.name == "paper.md":
-            paper_dirs.append(path.parent)
-        elif path.is_dir():
+            if auto_process:
+                paper_dir, error = _ensure_fully_processed(path.parent)
+                if paper_dir:
+                    paper_dirs.append(paper_dir)
+                elif error:
+                    messages.append(error)
+            else:
+                paper_dirs.append(path.parent)
+            continue
+
+        # Handle directories
+        if path.is_dir():
             # Check if this is a paper directory
             if (path / "paper.md").exists():
-                paper_dirs.append(path)
+                if auto_process:
+                    paper_dir, error = _ensure_fully_processed(path)
+                    if paper_dir:
+                        paper_dirs.append(paper_dir)
+                    elif error:
+                        messages.append(error)
+                else:
+                    paper_dirs.append(path)
             # Also check subdirectories
             for subdir in path.iterdir():
                 if subdir.is_dir() and (subdir / "paper.md").exists():
-                    paper_dirs.append(subdir)
-    return paper_dirs
+                    if auto_process:
+                        paper_dir, error = _ensure_fully_processed(subdir)
+                        if paper_dir:
+                            paper_dirs.append(paper_dir)
+                        elif error:
+                            messages.append(error)
+                    else:
+                        paper_dirs.append(subdir)
+
+    return paper_dirs, messages
 
 
 def grep_search(
@@ -166,29 +314,34 @@ def rag_search(
 
 def search(
     query: str,
-    paper_dirs: list[str],
+    sources: list[str],
     mode: Literal["grep", "rag", "hybrid"] = "hybrid",
     top_k: int = 5,
     case_sensitive: bool = False,
     regex: bool = False,
     include_context: bool = True,
+    use_llm: bool = False,
 ) -> dict:
-    """Unified search across paper directories using grep and/or RAG.
+    """Search PDF documents and paper directories.
+
+    Automatically processes PDFs on first use (may take 1-3 minutes per PDF).
+    Subsequent searches on the same PDF are instant.
 
     Args:
-        query: Search query (text, regex if regex=True, or semantic query)
-        paper_dirs: List of paper directories to search
+        query: Search query (text, regex pattern, or semantic query)
+        sources: List of PDF paths or paper directories to search
         mode: Search mode - "grep", "rag", or "hybrid" (default)
         top_k: Number of results to return (default 5)
         case_sensitive: Case sensitivity for grep (default False)
         regex: Treat query as regex pattern for grep (default False)
         include_context: Include surrounding context in results (default True)
+        use_llm: Use LLM for enhanced PDF conversion accuracy (slower)
 
     Returns:
         Result with results list, num_results, and success status
     """
-    # Find all paper directories
-    dirs = _find_paper_dirs(paper_dirs)
+    # Find all paper directories, auto-processing PDFs as needed
+    dirs, processing_messages = _find_paper_dirs(sources, auto_process=True, use_llm=use_llm)
 
     if not dirs:
         return {
@@ -196,8 +349,8 @@ def search(
             "num_results": 0,
             "query": query,
             "mode": mode,
-            "success": True,
-            "message": "No paper directories found",
+            "success": False if processing_messages else True,
+            "message": "; ".join(processing_messages) if processing_messages else "No paper directories found",
         }
 
     results = []
@@ -244,7 +397,7 @@ def search(
             for r in results:
                 r.pop("context", None)
 
-        return {
+        result = {
             "results": results,
             "num_results": len(results),
             "papers_searched": len(dirs),
@@ -252,6 +405,9 @@ def search(
             "mode": mode,
             "success": True,
         }
+        if processing_messages:
+            result["processing_notes"] = processing_messages
+        return result
 
     except Exception as e:
         return {

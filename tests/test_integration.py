@@ -17,6 +17,64 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 SAMPLE_PDF = FIXTURES_DIR / "sample.pdf"
 
 
+def _run_full_pipeline(pdf_path: str, output_dir: str) -> dict:
+    """Run the full processing pipeline on a PDF.
+
+    This replicates the old process_paper function for testing.
+    """
+    from paper_intelligence.tools.convert import convert_pdf
+    from paper_intelligence.tools.embed import embed_document
+    from paper_intelligence.tools.index import index_markdown
+
+    results = {
+        "pdf_path": pdf_path,
+        "steps": {},
+        "success": True,
+    }
+
+    # Step 1: Convert PDF
+    convert_result = convert_pdf(
+        pdf_path=pdf_path,
+        output_dir=output_dir,
+    )
+    results["steps"]["convert"] = convert_result
+
+    if not convert_result.get("success"):
+        results["success"] = False
+        results["message"] = f"PDF conversion failed: {convert_result.get('message')}"
+        return results
+
+    markdown_path = convert_result["markdown_path"]
+    results["output_dir"] = convert_result.get("output_dir")
+    results["markdown_path"] = markdown_path
+
+    # Step 2: Index headers
+    index_result = index_markdown(markdown_path=markdown_path)
+    results["steps"]["index"] = index_result
+
+    if not index_result.get("success"):
+        results["success"] = False
+        results["message"] = f"Indexing failed: {index_result.get('message')}"
+        return results
+
+    # Step 3: Create embeddings
+    embed_result = embed_document(markdown_path=markdown_path)
+    results["steps"]["embed"] = embed_result
+
+    if not embed_result.get("success"):
+        results["success"] = False
+        results["message"] = f"Embedding failed: {embed_result.get('message')}"
+        return results
+
+    results["message"] = (
+        f"Successfully processed paper: "
+        f"{index_result.get('header_count', 0)} headers indexed, "
+        f"{embed_result.get('num_chunks', 0)} chunks embedded"
+    )
+
+    return results
+
+
 @pytest.fixture(scope="module")
 def fully_processed_paper(tmp_path_factory):
     """Process PDF once and share across ALL tests in this module.
@@ -29,11 +87,9 @@ def fully_processed_paper(tmp_path_factory):
     All tests that need a processed paper should use this fixture
     to avoid redundant, slow operations.
     """
-    from paper_intelligence.server import process_paper
-
     output_dir = tmp_path_factory.mktemp("paper")
 
-    result = process_paper(
+    result = _run_full_pipeline(
         pdf_path=str(SAMPLE_PDF),
         output_dir=str(output_dir),
     )
@@ -222,7 +278,7 @@ class TestSearch:
 
         result = search(
             query="the",  # Common word likely in any document
-            paper_dirs=[str(output_dir)],
+            sources=[str(output_dir)],
             mode="grep",
             top_k=5,
         )
@@ -239,7 +295,7 @@ class TestSearch:
 
         result = search(
             query="technology innovation",
-            paper_dirs=[str(output_dir)],
+            sources=[str(output_dir)],
             mode="rag",
             top_k=3,
         )
@@ -255,7 +311,7 @@ class TestSearch:
 
         result = search(
             query="data",
-            paper_dirs=[str(output_dir)],
+            sources=[str(output_dir)],
             mode="hybrid",
             top_k=5,
         )
@@ -273,7 +329,7 @@ class TestSearch:
 
         result = search(
             query=r"\b\w+ing\b",  # Words ending in 'ing'
-            paper_dirs=[str(output_dir)],
+            sources=[str(output_dir)],
             mode="grep",
             regex=True,
             top_k=5,
@@ -289,13 +345,44 @@ class TestSearch:
 
         result = search(
             query="The",
-            paper_dirs=[str(output_dir)],
+            sources=[str(output_dir)],
             mode="grep",
             case_sensitive=True,
             top_k=5,
         )
 
         assert result["success"]
+
+
+class TestAutoProcessing:
+    """Tests for auto-processing PDFs in search."""
+
+    def test_search_auto_processes_pdf(self, temp_output_dir):
+        """Test that searching a PDF auto-processes it."""
+        from paper_intelligence.tools.search import search
+
+        # Copy sample PDF to temp dir
+        import shutil
+        pdf_copy = temp_output_dir / "test_auto.pdf"
+        shutil.copy(SAMPLE_PDF, pdf_copy)
+
+        result = search(
+            query="the",
+            sources=[str(pdf_copy)],
+            mode="grep",
+            top_k=5,
+        )
+
+        assert result["success"]
+        # Should have processing notes about the PDF
+        assert "processing_notes" in result or result["num_results"] > 0
+
+        # Paper directory should now exist
+        paper_dir = temp_output_dir / "test_auto"
+        assert paper_dir.exists()
+        assert (paper_dir / "paper.md").exists()
+        assert (paper_dir / "index.json").exists()
+        assert (paper_dir / "chroma").exists()
 
 
 class TestPaperInfo:
