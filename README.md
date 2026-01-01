@@ -1,8 +1,23 @@
-# Paper Intelligence MCP Server
+# Paper Intelligence
 
-A local MCP (Model Context Protocol) server for intelligent paper/PDF management with RAG capabilities.
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
+[![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![uv](https://img.shields.io/badge/uv-Package%20Manager-purple.svg)](https://github.com/astral-sh/uv)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-orange.svg)](https://www.trychroma.com/)
+[![LlamaIndex](https://img.shields.io/badge/LlamaIndex-RAG-red.svg)](https://www.llamaindex.ai/)
 
-## Quick Start
+A local MCP server for intelligent paper/PDF management. Convert PDFs to markdown, then search them with hybrid grep + semantic search. Designed for **token efficiency**: search first, read only what you need.
+
+## 🚀 Quick Start
+
+### 1. Install UV (one-time setup)
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 2. Add to Your MCP Client
 
 **Claude Code CLI:**
 ```bash
@@ -14,68 +29,12 @@ claude mcp add paper-intelligence -- uvx paper-intelligence
 code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence"]}'
 ```
 
-## Features
+That's it! `uvx` handles everything automatically.
 
-- **PDF to Markdown**: Convert PDFs using [Marker](https://github.com/VikParuchuri/marker) with high accuracy
-- **Header Indexing**: Extract document structure into searchable JSON
-- **Semantic Search**: RAG-powered search using LlamaIndex + ChromaDB + HuggingFace embeddings
-- **Hybrid Search**: Combined grep (text/regex) + semantic search
-- **GPU Acceleration**: MPS (Apple Silicon) and CUDA support
-- **Self-contained**: Each paper gets its own directory with all data
-- **Version Tracking**: Metadata tracks which version processed each paper
+## 🔌 MCP Client Integration
 
-## Installation
-
-### Option 1: Install from PyPI (Recommended)
-
-```bash
-# Install with pip
-pip install paper-intelligence
-
-# Or run directly with uvx (no install needed)
-uvx paper-intelligence
-```
-
-### Option 2: Install from GitHub
-
-```bash
-# Install directly from GitHub (no clone needed)
-pip install "paper-intelligence @ git+https://github.com/Strand-AI/paper-intelligence.git"
-```
-
-### Option 3: Local Development
-
-```bash
-git clone https://github.com/Strand-AI/paper-intelligence.git
-cd paper-intelligence
-
-# Create virtual environment
-python3.11 -m venv .venv
-source .venv/bin/activate
-
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run the server
-python -m paper_intelligence.server
-```
-
-## MCP Client Configuration
-
-### Claude Code CLI
-
-The easiest way to add the server:
-
-```bash
-claude mcp add paper-intelligence -- uvx paper-intelligence
-```
-
-Verify installation:
-```bash
-claude mcp list
-```
-
-### Claude Desktop
+<details>
+<summary><strong>Claude Desktop</strong></summary>
 
 Add to your Claude Desktop config:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -93,34 +52,16 @@ Add to your Claude Desktop config:
 }
 ```
 
-### VS Code
+</details>
 
-One-liner install:
-```bash
-code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence"]}'
-```
-
-Or manually add to your User Settings (JSON) or `.vscode/mcp.json`:
-```json
-{
-  "mcp": {
-    "servers": {
-      "paper-intelligence": {
-        "command": "uvx",
-        "args": ["paper-intelligence"]
-      }
-    }
-  }
-}
-```
-
-### Cursor
+<details>
+<summary><strong>Cursor</strong></summary>
 
 1. Go to **Settings → MCP → Add new MCP Server**
 2. Select `command` type
 3. Enter: `uvx paper-intelligence`
 
-Or add to your Cursor MCP config:
+Or add to `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -132,9 +73,13 @@ Or add to your Cursor MCP config:
 }
 ```
 
-### Windsurf
+</details>
 
-Add to your Windsurf MCP configuration:
+<details>
+<summary><strong>Windsurf / Other MCP Clients</strong></summary>
+
+Any MCP-compatible client can use paper-intelligence:
+
 ```json
 {
   "mcpServers": {
@@ -146,57 +91,123 @@ Add to your Windsurf MCP configuration:
 }
 ```
 
-## Output Structure
+</details>
 
-For `~/Downloads/paper.pdf`, creates `~/Downloads/paper/`:
-```
-paper/
-├── paper.md        # Converted markdown
-├── metadata.json   # Processing version and info
-├── index.json      # Header hierarchy (for search context)
-├── chroma/         # Embeddings database
-└── images/         # Extracted images (if any)
-```
+## ✨ Features
 
-## MCP Tools
+- **PDF to Markdown** — High-accuracy conversion using [Marker](https://github.com/VikParuchuri/marker)
+- **Hybrid Search** — Combined grep (exact/regex) + semantic RAG search
+- **Token Efficient** — Search papers instead of reading entire documents
+- **GPU Acceleration** — MPS (Apple Silicon) and CUDA support
+- **Self-Contained** — Each paper gets its own directory with all data
+- **Header Context** — Search results show document structure (e.g., "Methods > Data Collection")
+
+## 📖 MCP Tools
 
 ### `process_paper`
-Full pipeline: Convert PDF, index headers, and create embeddings.
 
-```python
-process_paper(
-    pdf_path="~/Downloads/paper.pdf",
-    use_llm=False,      # Set True for enhanced accuracy
-    chunk_size=512,
-    chunk_overlap=50
-)
-# Returns: output_dir, markdown_path, images_dir (if images extracted), image_count
+<details>
+<summary>Full pipeline: Convert PDF → Index headers → Create embeddings</summary>
+
+**Parameters:**
+- `pdf_path` (string): Path to PDF file
+- `use_llm` (boolean, optional): Enhanced accuracy mode (default: false)
+- `chunk_size` (integer, optional): Text chunk size for embedding (default: 512)
+- `chunk_overlap` (integer, optional): Overlap between chunks (default: 50)
+
+**Example:**
 ```
+Process the paper at ~/Downloads/attention-is-all-you-need.pdf
+```
+
+**Output Structure:**
+```
+attention-is-all-you-need/
+├── attention-is-all-you-need.md   # Converted markdown
+├── metadata.json                   # Processing version info
+├── index.json                      # Header hierarchy
+├── chroma/                         # Embeddings database
+└── images/                         # Extracted figures
+```
+
+</details>
+
+### `search`
+
+<details>
+<summary>Unified search with grep and/or semantic RAG</summary>
+
+**Parameters:**
+- `query` (string): Search query (text, regex, or semantic)
+- `paper_dirs` (array): List of paper directories to search
+- `mode` (string, optional): `"grep"`, `"rag"`, or `"hybrid"` (default: hybrid)
+- `top_k` (integer, optional): Number of results (default: 5)
+- `regex` (boolean, optional): Treat query as regex (default: false)
+
+**Example Queries:**
+```
+# Semantic search across papers
+Search for "attention mechanism implementation" in my processed papers
+
+# Exact text search
+Search for "transformer" using grep mode
+
+# Regex search
+Search for "BERT|GPT|T5" with regex enabled
+```
+
+**Returns:** Results with line numbers, surrounding context, and header location.
+
+</details>
 
 ### `convert_pdf`
-Convert a PDF file to Markdown.
 
-```python
-convert_pdf(
-    pdf_path="~/Downloads/paper.pdf",
-    output_dir=None,  # Defaults to ~/Downloads/paper/
-    use_llm=False
-)
-# Returns: markdown_path, images_dir (if images extracted), image_count
+<details>
+<summary>Convert PDF to Markdown (without embeddings)</summary>
+
+**Parameters:**
+- `pdf_path` (string): Path to PDF file
+- `output_dir` (string, optional): Custom output directory
+- `use_llm` (boolean, optional): Enhanced accuracy mode
+
+**Returns:** `markdown_path`, `images_dir`, `image_count`
+
+</details>
+
+### `get_paper_info`
+
+<details>
+<summary>Check processing status of a paper</summary>
+
+**Parameters:**
+- `paper_dir` (string): Path to paper directory
+
+**Example Response:**
+```json
+{
+  "has_markdown": true,
+  "has_index": true,
+  "has_embeddings": true,
+  "has_images": true,
+  "image_count": 12,
+  "version": "0.2.0",
+  "processed_at": "2025-01-15T10:30:00Z"
+}
 ```
 
-### `index_markdown`
-Extract header hierarchy into searchable JSON.
+</details>
 
+### `index_markdown` / `embed_document`
+
+<details>
+<summary>Individual pipeline steps (for advanced use)</summary>
+
+**`index_markdown`** — Extract header hierarchy into searchable JSON
 ```python
-index_markdown(
-    markdown_path="~/Downloads/paper/paper.md"
-)
+index_markdown(markdown_path="~/Downloads/paper/paper.md")
 ```
 
-### `embed_document`
-Create embeddings for semantic search.
-
+**`embed_document`** — Create embeddings for semantic search
 ```python
 embed_document(
     markdown_path="~/Downloads/paper/paper.md",
@@ -205,82 +216,102 @@ embed_document(
 )
 ```
 
-### `search`
-Unified search with grep and/or RAG.
+</details>
 
-```python
-search(
-    query="transformer attention mechanism",
-    paper_dirs=["~/Downloads/paper1", "~/Downloads/paper2"],
-    mode="hybrid",  # "grep", "rag", or "hybrid"
-    top_k=5
-)
+## 📊 Example Output
+
+### Search Result
+
+```json
+{
+  "source": "attention-is-all-you-need.md",
+  "line_number": 142,
+  "header_path": "Model Architecture > Attention",
+  "content": "An attention function can be described as mapping a query and a set of key-value pairs to an output...",
+  "score": 0.89
+}
 ```
 
-### `get_paper_info`
-Check processing status of a paper directory.
+## 🎯 Typical Workflow
 
-```python
-get_paper_info("~/Downloads/paper")
-# Returns: has_markdown, has_index, has_embeddings, has_images,
-#          images_dir, image_files, image_count,
-#          version info, metadata
-```
+1. **Process a paper:**
+   > Process the PDF at ~/Downloads/transformer-paper.pdf
 
-## Extracted Images
+2. **Search across papers:**
+   > Search for "positional encoding" in my papers
 
-When PDFs contain images (figures, diagrams, etc.), they are automatically extracted to an `images/` subdirectory. The agent using this MCP server can:
+3. **Read specific sections:**
+   > Show me the Methods section from the transformer paper
 
-1. Check `get_paper_info()` to see if images exist and get the `images_dir` path
-2. Access individual image files listed in `image_files`
-3. Reference images from the converted markdown (images are linked in the `.md` file)
+The agent reads search results (a few hundred tokens) instead of entire papers (tens of thousands of tokens).
 
-## Version Compatibility
+## 🛠️ Installation Options
 
-Each processed paper directory includes a `metadata.json` file tracking:
-
-- `paper_intelligence_version`: Version used for processing
-- `processed_at`: Timestamp of processing
-- `source_pdf`: Original PDF filename
-- `steps_completed`: Which processing steps were run
-
-When accessing papers, `get_paper_info()` checks version compatibility and warns if re-processing might be beneficial.
-
-## How Search Uses index.json
-
-The `index.json` file stores the header hierarchy extracted from the markdown. When you search:
-
-1. **Grep search**: Uses `index.json` to provide header context for matches (e.g., "Methods > Data Collection")
-2. **RAG search**: Returns semantic matches from the embedded chunks
-
-The index enables fast header lookups without re-parsing the markdown on each search.
-
-## Technical Stack
-
-- **MCP**: Official Python SDK with FastMCP
-- **PDF Conversion**: marker-pdf
-- **Embeddings**: LlamaIndex + HuggingFace (BAAI/bge-small-en-v1.5)
-- **Vector Store**: ChromaDB (persistent, local per-paper)
-- **GPU**: PyTorch with MPS (Apple Silicon) or CUDA support
-
-## Development
+<details>
+<summary><strong>Install from PyPI</strong></summary>
 
 ```bash
+# Install with pip
+pip install paper-intelligence
+
+# Or run directly with uvx (no install needed)
+uvx paper-intelligence
+```
+
+</details>
+
+<details>
+<summary><strong>Install from GitHub</strong></summary>
+
+```bash
+pip install "paper-intelligence @ git+https://github.com/Strand-AI/paper-intelligence.git"
+```
+
+</details>
+
+<details>
+<summary><strong>Local Development</strong></summary>
+
+```bash
+git clone https://github.com/Strand-AI/paper-intelligence.git
+cd paper-intelligence
+
+# Create virtual environment
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# Install in development mode
 pip install -e ".[dev]"
 
-# Run unit tests (fast)
-pytest tests/test_markdown_parser.py
-
-# Run integration tests (slow, requires ML models)
-pytest tests/test_integration.py -v
-```
-
-To use your local development version with MCP clients, replace `uvx paper-intelligence` with:
-```bash
+# Run the server
 python -m paper_intelligence.server
 ```
 
-## Debugging
+**Development MCP config:**
+```json
+{
+  "mcpServers": {
+    "paper-intelligence": {
+      "command": "python",
+      "args": ["-m", "paper_intelligence.server"],
+      "cwd": "/path/to/paper-intelligence"
+    }
+  }
+}
+```
+
+**Run tests:**
+```bash
+# Unit tests (fast)
+pytest tests/test_markdown_parser.py
+
+# Integration tests (slow, requires ML models)
+pytest tests/test_integration.py -v
+```
+
+</details>
+
+## 🔧 Debugging
 
 Use the MCP Inspector to debug the server:
 
@@ -288,24 +319,53 @@ Use the MCP Inspector to debug the server:
 npx @modelcontextprotocol/inspector uvx paper-intelligence
 ```
 
-## Troubleshooting
+## 🆘 Troubleshooting
 
-**Server not starting?**
+<details>
+<summary><strong>Server not starting?</strong></summary>
+
 - Ensure Python 3.11+ is installed
 - Try `uvx paper-intelligence` directly to see error messages
 - Check that all dependencies installed correctly
 
-**Windows encoding issues?**
-Add to your config:
+</details>
+
+<details>
+<summary><strong>Windows encoding issues?</strong></summary>
+
+Add to your MCP config:
 ```json
 "env": {
   "PYTHONIOENCODING": "utf-8"
 }
 ```
 
-**Claude Desktop not detecting changes?**
+</details>
+
+<details>
+<summary><strong>Claude Desktop not detecting changes?</strong></summary>
+
 Claude Desktop only reads configuration on startup. Fully restart the app after config changes.
 
-## License
+</details>
 
-MIT
+## 🏗️ Technical Stack
+
+| Component | Technology |
+|-----------|------------|
+| MCP Server | Official Python SDK with FastMCP |
+| PDF Conversion | [marker-pdf](https://github.com/VikParuchuri/marker) |
+| Embeddings | LlamaIndex + HuggingFace (BAAI/bge-small-en-v1.5) |
+| Vector Store | ChromaDB (persistent, local per-paper) |
+| GPU Support | PyTorch with MPS (Apple) or CUDA |
+
+## 🙏 Acknowledgments
+
+- [Marker](https://github.com/VikParuchuri/marker) for excellent PDF conversion
+- [LlamaIndex](https://www.llamaindex.ai/) for the RAG framework
+- [ChromaDB](https://www.trychroma.com/) for the vector database
+- [FastMCP](https://github.com/modelcontextprotocol/python-sdk) for the MCP server framework
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE) for details.
