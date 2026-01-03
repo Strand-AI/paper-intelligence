@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-02
+
+### Added
+- RAG search results now include `start_line` and `end_line` fields for source navigation
+- Agents can now jump directly to relevant sections in markdown files using line offsets
+- Pre-chunking with header-aware splitting preserves document structure in embeddings
+
+### Changed
+- Embedding process now uses header-aware chunking instead of sentence splitting
+- Each chunk includes `header_path` metadata for context
+
 ## [0.2.0] - 2026-01-01
 
 ### Changed
