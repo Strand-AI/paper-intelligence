@@ -21,15 +21,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 **Claude Code CLI:**
 ```bash
-claude mcp add paper-intelligence -- uvx paper-intelligence
+claude mcp add paper-intelligence -- uvx paper-intelligence@latest
 ```
 
 **VS Code:**
 ```bash
-code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence"]}'
+code --add-mcp '{"name":"paper-intelligence","command":"uvx","args":["paper-intelligence@latest"]}'
 ```
 
-That's it! `uvx` handles everything automatically.
+That's it! `uvx` handles everything automatically. Using `@latest` ensures you always get the newest version.
 
 ## 🔌 MCP Client Integration
 
@@ -46,7 +46,7 @@ Add to your Claude Desktop config:
   "mcpServers": {
     "paper-intelligence": {
       "command": "uvx",
-      "args": ["paper-intelligence"]
+      "args": ["paper-intelligence@latest"]
     }
   }
 }
@@ -59,7 +59,7 @@ Add to your Claude Desktop config:
 
 1. Go to **Settings → MCP → Add new MCP Server**
 2. Select `command` type
-3. Enter: `uvx paper-intelligence`
+3. Enter: `uvx paper-intelligence@latest`
 
 Or add to `~/.cursor/mcp.json`:
 ```json
@@ -67,7 +67,7 @@ Or add to `~/.cursor/mcp.json`:
   "mcpServers": {
     "paper-intelligence": {
       "command": "uvx",
-      "args": ["paper-intelligence"]
+      "args": ["paper-intelligence@latest"]
     }
   }
 }
@@ -85,7 +85,7 @@ Any MCP-compatible client can use paper-intelligence:
   "mcpServers": {
     "paper-intelligence": {
       "command": "uvx",
-      "args": ["paper-intelligence"]
+      "args": ["paper-intelligence@latest"]
     }
   }
 }
@@ -255,7 +255,7 @@ The agent reads search results (a few hundred tokens) instead of entire papers (
 pip install paper-intelligence
 
 # Or run directly with uvx (no install needed)
-uvx paper-intelligence
+uvx paper-intelligence@latest
 ```
 
 </details>
@@ -316,7 +316,7 @@ pytest tests/test_integration.py -v
 Use the MCP Inspector to debug the server:
 
 ```bash
-npx @modelcontextprotocol/inspector uvx paper-intelligence
+npx @modelcontextprotocol/inspector uvx paper-intelligence@latest
 ```
 
 ## 🆘 Troubleshooting
@@ -325,7 +325,7 @@ npx @modelcontextprotocol/inspector uvx paper-intelligence
 <summary><strong>Server not starting?</strong></summary>
 
 - Ensure Python 3.11+ is installed
-- Try `uvx paper-intelligence` directly to see error messages
+- Try `uvx paper-intelligence@latest` directly to see error messages
 - Check that all dependencies installed correctly
 
 </details>
