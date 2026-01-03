@@ -99,12 +99,14 @@ class RAGClient:
         self,
         collection_name: str,
         documents: list[Document],
+        pre_chunked: bool = False,
     ) -> VectorStoreIndex:
         """Create a new index from documents.
 
         Args:
             collection_name: Name for the collection
             documents: List of LlamaIndex Document objects
+            pre_chunked: If True, skip chunking (documents already chunked with metadata)
 
         Returns:
             VectorStoreIndex for querying
@@ -120,11 +122,12 @@ class RAGClient:
         # Create storage context
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-        # Build index
+        # Build index - skip chunking if documents are pre-chunked with line metadata
+        transformations = [] if pre_chunked else [self.text_splitter]
         index = VectorStoreIndex.from_documents(
             documents,
             storage_context=storage_context,
-            transformations=[self.text_splitter],
+            transformations=transformations,
             show_progress=True,
         )
 
@@ -277,24 +280,45 @@ class RAGClient:
 def create_documents_from_markdown(
     markdown_path: str | Path,
     metadata: Optional[dict] = None,
+    chunk_size: int = 512,
+    chunk_overlap: int = 50,
 ) -> list[Document]:
-    """Create LlamaIndex Documents from a markdown file.
+    """Create LlamaIndex Documents from a markdown file with line number metadata.
+
+    Pre-chunks the markdown using header-aware chunking to preserve line numbers.
+    Each chunk includes start_line, end_line, and header_path in metadata.
 
     Args:
         markdown_path: Path to the markdown file
         metadata: Optional metadata to attach to documents
+        chunk_size: Size of text chunks
+        chunk_overlap: Overlap between chunks
 
     Returns:
-        List of Document objects
+        List of Document objects with line number metadata
     """
+    from .markdown_parser import MarkdownParser
+
     path = Path(markdown_path)
-    content = path.read_text(encoding="utf-8")
+    parser = MarkdownParser.from_file(path)
 
-    doc_metadata = {
-        "source": str(path),
-        "filename": path.name,
-    }
-    if metadata:
-        doc_metadata.update(metadata)
+    # Use header-aware chunking that preserves line numbers
+    chunks = parser.chunk_text(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-    return [Document(text=content, metadata=doc_metadata)]
+    documents = []
+    for chunk in chunks:
+        doc_metadata = {
+            "source": str(path),
+            "filename": path.name,
+            "start_line": chunk["start_line"],
+            "end_line": chunk["end_line"],
+            "header_path": chunk.get("header_path", ""),
+        }
+        if "chunk_index" in chunk:
+            doc_metadata["chunk_index"] = chunk["chunk_index"]
+        if metadata:
+            doc_metadata.update(metadata)
+
+        documents.append(Document(text=chunk["text"], metadata=doc_metadata))
+
+    return documents

@@ -303,6 +303,31 @@ class TestSearch:
         assert result["success"]
         assert "results" in result
 
+    def test_rag_search_includes_line_numbers(self, fully_processed_paper):
+        """Test that RAG search results include line numbers for source navigation."""
+        from paper_intelligence.tools.search import search
+
+        output_dir = fully_processed_paper["output_dir"]
+
+        result = search(
+            query="technology innovation",
+            sources=[str(output_dir)],
+            mode="rag",
+            top_k=3,
+        )
+
+        assert result["success"]
+        assert result["num_results"] > 0
+
+        # Verify RAG results include line numbers
+        for r in result["results"]:
+            if r.get("match_type") == "rag":
+                assert "start_line" in r, "RAG result missing start_line"
+                assert "end_line" in r, "RAG result missing end_line"
+                assert isinstance(r["start_line"], int)
+                assert isinstance(r["end_line"], int)
+                assert r["start_line"] <= r["end_line"]
+
     def test_hybrid_search(self, fully_processed_paper):
         """Test hybrid grep + RAG search."""
         from paper_intelligence.tools.search import search

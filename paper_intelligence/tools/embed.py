@@ -53,14 +53,18 @@ def embed_document(
             chunk_overlap=chunk_overlap,
         )
 
-        # Create documents from markdown
-        documents = create_documents_from_markdown(md_path)
+        # Create pre-chunked documents with line number metadata
+        documents = create_documents_from_markdown(
+            md_path,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
 
         # Use a fixed collection name since each paper has its own DB
         collection_name = "paper"
 
-        # Create index (this embeds and stores the documents)
-        rag_client.create_index(collection_name, documents)
+        # Create index (skip chunking since documents are pre-chunked with line metadata)
+        rag_client.create_index(collection_name, documents, pre_chunked=True)
 
         # Get chunk count
         num_chunks = rag_client.get_collection_count(collection_name)

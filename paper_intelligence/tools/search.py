@@ -294,15 +294,22 @@ def rag_search(
             raw_results = rag_client.query("paper", query, top_k)
 
             for r in raw_results:
-                results.append({
+                metadata = r.get("metadata", {})
+                result_entry = {
                     "paper_dir": str(paper_dir),
                     "paper_name": paper_dir.name,
-                    "source": r.get("metadata", {}).get("source", str(paper_dir / "paper.md")),
+                    "source": metadata.get("source", str(paper_dir / "paper.md")),
                     "content": r.get("text", ""),
                     "score": r.get("score", 0.0),
-                    "header_context": r.get("metadata", {}).get("header_path", ""),
+                    "header_context": metadata.get("header_path", ""),
                     "match_type": "rag",
-                })
+                }
+                # Include line numbers if available (from pre-chunked documents)
+                if "start_line" in metadata:
+                    result_entry["start_line"] = metadata["start_line"]
+                if "end_line" in metadata:
+                    result_entry["end_line"] = metadata["end_line"]
+                results.append(result_entry)
 
         except Exception:
             continue
