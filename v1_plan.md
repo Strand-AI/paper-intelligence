@@ -424,14 +424,6 @@ CREATE TABLE library_papers (
 
 ---
 
-## Open Questions
-
-1. **Reducto pricing**: Need to estimate cost per paper for pricing model
-2. **Mobile**: Native apps eventually, or PWA sufficient?
-3. **PDF viewer**: Build custom or use existing (pdf.js, react-pdf)?
-
----
-
 ## Tech Stack Summary
 
 | Component | Technology |
@@ -446,6 +438,7 @@ CREATE TABLE library_papers (
 | Auth | Clerk or Auth.js |
 | Web App | React + Vite + TailwindCSS (Cloud Run or Firebase Hosting) |
 | Desktop App | Electron + Local SQLite + LanceDB |
+| PDF Viewer | PDF.js (via react-pdf) |
 | MCP Server | Python (existing codebase) |
 | Job Queue | Cloud Tasks or Pub/Sub |
 | Secrets | Secret Manager |
