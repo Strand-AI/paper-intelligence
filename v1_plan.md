@@ -11,6 +11,31 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
 
 ---
 
+## Current Status
+
+**Repository:** [github.com/Strand-AI/paper-intelligence-cloud](https://github.com/Strand-AI/paper-intelligence-cloud)
+
+**Live API:** `https://paper-intel-api-793508173682.us-central1.run.app`
+
+### Completed
+- [x] GCP project setup (paper-intelligence-cloud)
+- [x] Cloud SQL with PostgreSQL 15 + pgvector
+- [x] Cloud Storage bucket for PDFs and markdown
+- [x] Artifact Registry for Docker images
+- [x] Database schema with Alembic migrations
+- [x] Vertex AI embedding service (768 dimensions)
+- [x] Reducto PDF processing integration
+- [x] GCS storage service with content-addressed storage
+- [x] Core API endpoints (upload, search, paper details)
+- [x] Cloud Run deployment with Secret Manager
+
+### In Progress
+- [ ] Authentication (Auth.js with Google OAuth)
+- [ ] Web application frontend
+- [ ] End-to-end testing of upload/search flow
+
+---
+
 ## Architecture Overview
 
 ```
@@ -27,8 +52,8 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
        │                  │ (sync)                    │
        ▼                  ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         API Gateway                                  │
-│                    (Auth, Rate Limiting)                            │
+│                      Cloud Run API                                   │
+│                 (FastAPI + Auth + Rate Limiting)                     │
 └─────────────────────────────────────────────────────────────────────┘
        │
        ▼
@@ -36,14 +61,14 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
 │                       Backend Services                               │
 ├─────────────────┬─────────────────┬─────────────────────────────────┤
 │  PDF Processor  │  Search Service │      User/Team Service          │
-│  (Reducto)      │  (Pinecone)     │      (Auth, Libraries)          │
+│  (Reducto)      │  (pgvector)     │      (Auth, Libraries)          │
 └────────┬────────┴────────┬────────┴─────────────────────────────────┘
          │                 │
          ▼                 ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────────┐
-│  Cloud Storage  │ │    Pinecone     │ │    Cloud SQL (Postgres)     │
-│     (GCS)       │ │   (Vectors)     │ │   (Users, Teams, Papers)    │
-└─────────────────┘ └─────────────────┘ └─────────────────────────────┘
+┌─────────────────┐ ┌─────────────────────────────────────────────────┐
+│  Cloud Storage  │ │      Cloud SQL (PostgreSQL + pgvector)          │
+│     (GCS)       │ │      (Users, Teams, Papers, Embeddings)         │
+└─────────────────┘ └─────────────────────────────────────────────────┘
 ```
 
 ---
@@ -58,8 +83,8 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
 3. Check if hash exists in global index → **deduplicate**
 4. If new: Send to Reducto for parsing
 5. Extract text, figures, tables, equations
-6. Generate embeddings (OpenAI `text-embedding-3-small`)
-7. Store in Pinecone with metadata
+6. Generate embeddings (Vertex AI `text-embedding-004`, 768 dimensions)
+7. Store embeddings in pgvector
 8. Store PDF blob and parsed markdown in GCS
 
 **Deduplication Strategy:**
@@ -200,7 +225,19 @@ On upload (offline):
 
 ## Backend Services
 
-### API Endpoints
+### API Endpoints (Implemented)
+
+```
+GET    /health              # Health check
+GET    /docs                # Swagger UI
+
+POST   /papers/upload       # Upload PDF for processing
+GET    /papers/{id}         # Get paper details
+POST   /papers/search       # Vector search across papers
+GET    /papers/{id}/chunks  # Get paper chunks with embeddings
+```
+
+### API Endpoints (Planned)
 
 ```
 POST   /auth/login          # OAuth or magic link
@@ -214,13 +251,8 @@ POST   /user/api-keys       # Create API key
 DELETE /user/api-keys/:id   # Revoke API key
 
 GET    /library             # List papers in personal library
-POST   /library/papers      # Add paper (upload or URL)
-GET    /library/papers/:id  # Get paper details
 DELETE /library/papers/:id  # Remove from library
 PATCH  /library/papers/:id  # Update tags, notes, etc.
-
-POST   /search              # Vector + keyword search
-POST   /search/paper/:id    # Search within a specific paper
 
 GET    /teams               # List user's teams
 POST   /teams               # Create team
@@ -230,44 +262,30 @@ DELETE /teams/:id           # Delete team
 POST   /teams/:id/members   # Add member
 DELETE /teams/:id/members/:uid  # Remove member
 GET    /teams/:id/library   # Team library
-
-POST   /papers/process      # Internal: trigger processing
-GET    /papers/:hash        # Get paper by content hash
-GET    /papers/:hash/download  # Download PDF or markdown
 ```
 
-### Processing Queue
+### Processing Flow
 
-Use a job queue (BullMQ, Celery, or similar) for PDF processing:
-
-```
-Job: ProcessPaper
-├── paper_id
-├── source_url or blob_ref
-├── requested_by (user_id)
-├── status: pending | processing | completed | failed
-├── progress: 0-100
-├── reducto_job_id
-└── error_message (if failed)
-```
-
-Webhook from Reducto triggers completion handler:
-1. Store parsed content in GCS
-2. Generate embeddings
-3. Upsert to Pinecone
-4. Update paper status in DB
-5. Notify user (websocket or email)
+PDF upload triggers synchronous processing:
+1. Compute content hash
+2. Check for existing paper (deduplication)
+3. Upload PDF to GCS
+4. Send to Reducto for parsing
+5. Store parsed markdown in GCS
+6. Chunk content and generate embeddings
+7. Store chunks with embeddings in pgvector
+8. Update paper status
 
 ---
 
 ## Data Storage
 
-### PostgreSQL Schema (simplified)
+### PostgreSQL Schema (Implemented)
 
 ```sql
 -- Users and auth
 CREATE TABLE users (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   avatar_url TEXT,
@@ -276,9 +294,9 @@ CREATE TABLE users (
 );
 
 CREATE TABLE api_keys (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id),
-  key_hash TEXT NOT NULL,  -- store hashed, prefix visible
+  key_hash TEXT NOT NULL,
   name TEXT,
   last_used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -286,7 +304,7 @@ CREATE TABLE api_keys (
 
 -- Teams
 CREATE TABLE teams (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   owner_id UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -295,62 +313,83 @@ CREATE TABLE teams (
 CREATE TABLE team_members (
   team_id UUID REFERENCES teams(id),
   user_id UUID REFERENCES users(id),
-  role TEXT DEFAULT 'member',  -- admin, member, viewer
+  role TEXT DEFAULT 'member',
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (team_id, user_id)
 );
 
 -- Papers (global, deduplicated)
 CREATE TABLE papers (
-  id UUID PRIMARY KEY,
-  content_hash TEXT UNIQUE NOT NULL,  -- SHA-256 of PDF
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content_hash TEXT UNIQUE NOT NULL,
   title TEXT,
   authors TEXT[],
   abstract TEXT,
   source_url TEXT,
   arxiv_id TEXT,
   doi TEXT,
-  blob_key TEXT,        -- GCS key for PDF
-  markdown_key TEXT,    -- GCS key for parsed markdown
-  pinecone_namespace TEXT,
+  blob_key TEXT,
+  markdown_key TEXT,
   status TEXT DEFAULT 'pending',
   processed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Paper chunks with embeddings (pgvector)
+CREATE TABLE paper_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  paper_id UUID REFERENCES papers(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  embedding VECTOR(768),  -- Vertex AI text-embedding-004
+  page_number INTEGER,
+  section TEXT,
+  content_type TEXT,
+  line_start INTEGER,
+  line_end INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX ix_paper_chunks_paper_id ON paper_chunks(paper_id);
+
 -- Library references
 CREATE TABLE library_papers (
-  id UUID PRIMARY KEY,
-  library_type TEXT NOT NULL,  -- 'user' or 'team'
-  library_owner_id UUID NOT NULL,  -- user_id or team_id
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  library_type VARCHAR(10) NOT NULL,
+  library_owner_id UUID NOT NULL,
   paper_id UUID REFERENCES papers(id),
   added_by UUID REFERENCES users(id),
   tags TEXT[],
   notes TEXT,
-  is_offline BOOLEAN DEFAULT FALSE,  -- marked for offline
+  is_offline BOOLEAN DEFAULT FALSE,
   added_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (library_type, library_owner_id, paper_id)
 );
 ```
 
-### Pinecone Structure
+### pgvector Search
 
-**Index:** `paper-intelligence`
-
-**Namespaces:** One per paper (by content_hash)
-
-**Vector Metadata:**
-```json
-{
-  "paper_hash": "abc123...",
-  "chunk_index": 42,
-  "page_number": 7,
-  "section": "Methods",
-  "content_type": "text|figure_caption|table|equation",
-  "line_start": 150,
-  "line_end": 175
-}
+Vector similarity search using cosine distance:
+```sql
+SELECT p.*, pc.content, pc.chunk_index,
+       1 - (pc.embedding <=> $1) as similarity
+FROM paper_chunks pc
+JOIN papers p ON pc.paper_id = p.id
+ORDER BY pc.embedding <=> $1
+LIMIT 10;
 ```
+
+---
+
+## GCP Resources
+
+| Resource | Name | Details |
+|----------|------|---------|
+| Project | `paper-intelligence-cloud` | ID: 793508173682 |
+| Cloud SQL | `paper-intel-db` | PostgreSQL 15 + pgvector, us-central1, db-f1-micro |
+| Cloud Storage | `paper-intelligence-files` | For PDFs and markdown |
+| Artifact Registry | `paper-intel` | Docker images, us-central1 |
+| Cloud Run | `paper-intel-api` | API service |
+| Secrets | `database-url`, `reducto-api-key` | Secret Manager |
 
 ---
 
@@ -386,22 +425,27 @@ CREATE TABLE library_papers (
 
 ## Implementation Phases
 
-### Phase 1: Backend Foundation
-- [ ] Set up API server (FastAPI or similar)
-- [ ] PostgreSQL schema and migrations
-- [ ] Auth system (OAuth + API keys)
-- [ ] Reducto integration for PDF processing
-- [ ] Pinecone setup and embedding pipeline
-- [ ] GCS for blob storage
-- [ ] Basic API endpoints (upload, search, library CRUD)
+### Phase 1: Backend Foundation ✅ COMPLETE
+- [x] Set up GCP project and enable APIs
+- [x] Cloud SQL with PostgreSQL + pgvector
+- [x] Cloud Storage bucket
+- [x] Artifact Registry for Docker images
+- [x] FastAPI server with async SQLAlchemy
+- [x] Database schema and Alembic migrations
+- [x] Reducto integration for PDF processing
+- [x] Vertex AI embedding service
+- [x] GCS blob storage service
+- [x] Basic API endpoints (upload, search)
+- [x] Deploy to Cloud Run
 
-### Phase 2: Web Application
-- [ ] React app scaffolding
-- [ ] Auth flow (login, signup, OAuth)
-- [ ] Library view (list papers, search)
-- [ ] Paper upload (file + URL)
-- [ ] Paper detail view
-- [ ] Basic team support
+### Phase 2: Web Application 🔄 IN PROGRESS
+- [ ] Set up Auth.js with Google OAuth
+- [ ] Create landing page
+- [ ] Implement auth flow (login, signup)
+- [ ] Build library view (list papers, search)
+- [ ] Build paper upload UI (drag & drop, URL input)
+- [ ] Build paper detail view with PDF.js
+- [ ] Deploy web app to Cloud Run or Firebase Hosting
 
 ### Phase 3: MCP Server v2
 - [ ] Add API key configuration
@@ -430,15 +474,15 @@ CREATE TABLE library_papers (
 |-----------|------------|
 | **Hosting** | **Google Cloud Platform** |
 | API Server | Cloud Run (FastAPI) |
-| Database | Cloud SQL (PostgreSQL) |
-| Vector DB | Pinecone |
+| Database | Cloud SQL (PostgreSQL 15) |
+| Vector DB | pgvector (PostgreSQL extension) |
 | Blob Storage | Cloud Storage (GCS) |
 | PDF Parsing | Reducto |
-| Embeddings | OpenAI text-embedding-3-small |
-| Auth | Clerk or Auth.js |
-| Web App | React + Vite + TailwindCSS (Cloud Run or Firebase Hosting) |
+| Embeddings | Vertex AI text-embedding-004 (768 dim) |
+| Auth | Auth.js |
+| Web App | React + Vite + TailwindCSS |
 | Desktop App | Electron + Local SQLite + LanceDB |
 | PDF Viewer | PDF.js (via react-pdf) |
 | MCP Server | Python (existing codebase) |
-| Job Queue | Cloud Tasks or Pub/Sub |
 | Secrets | Secret Manager |
+| CI/CD | GitHub Actions |
