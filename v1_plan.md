@@ -41,8 +41,8 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
          │                 │
          ▼                 ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────────┐
-│   Blob Storage  │ │    Pinecone     │ │      PostgreSQL             │
-│   (S3/R2)       │ │   (Vectors)     │ │   (Users, Teams, Papers)    │
+│  Cloud Storage  │ │    Pinecone     │ │    Cloud SQL (Postgres)     │
+│     (GCS)       │ │   (Vectors)     │ │   (Users, Teams, Papers)    │
 └─────────────────┘ └─────────────────┘ └─────────────────────────────┘
 ```
 
@@ -58,9 +58,9 @@ Transform paper-intelligence from a local MCP tool into a full-stack research pl
 3. Check if hash exists in global index → **deduplicate**
 4. If new: Send to Reducto for parsing
 5. Extract text, figures, tables, equations
-6. Generate embeddings (OpenAI ada-002 or similar)
+6. Generate embeddings (OpenAI `text-embedding-3-small`)
 7. Store in Pinecone with metadata
-8. Store PDF blob and parsed markdown in S3/R2
+8. Store PDF blob and parsed markdown in GCS
 
 **Deduplication Strategy:**
 - Global content-addressed storage keyed by file hash
@@ -252,7 +252,7 @@ Job: ProcessPaper
 ```
 
 Webhook from Reducto triggers completion handler:
-1. Store parsed content in S3
+1. Store parsed content in GCS
 2. Generate embeddings
 3. Upsert to Pinecone
 4. Update paper status in DB
@@ -310,8 +310,8 @@ CREATE TABLE papers (
   source_url TEXT,
   arxiv_id TEXT,
   doi TEXT,
-  blob_key TEXT,        -- S3 key for PDF
-  markdown_key TEXT,    -- S3 key for parsed markdown
+  blob_key TEXT,        -- GCS key for PDF
+  markdown_key TEXT,    -- GCS key for parsed markdown
   pinecone_namespace TEXT,
   status TEXT DEFAULT 'pending',
   processed_at TIMESTAMPTZ,
@@ -392,7 +392,7 @@ CREATE TABLE library_papers (
 - [ ] Auth system (OAuth + API keys)
 - [ ] Reducto integration for PDF processing
 - [ ] Pinecone setup and embedding pipeline
-- [ ] S3/R2 for blob storage
+- [ ] GCS for blob storage
 - [ ] Basic API endpoints (upload, search, library CRUD)
 
 ### Phase 2: Web Application
@@ -426,11 +426,9 @@ CREATE TABLE library_papers (
 
 ## Open Questions
 
-1. **Hosting**: Vercel/Railway for API? Cloudflare Workers? Self-hosted?
-2. **Reducto pricing**: Need to estimate cost per paper for pricing model
-3. **Embedding model**: OpenAI ada-002, or open-source (e5, bge)?
-4. **Mobile**: Native apps eventually, or PWA sufficient?
-5. **PDF viewer**: Build custom or use existing (pdf.js, react-pdf)?
+1. **Reducto pricing**: Need to estimate cost per paper for pricing model
+2. **Mobile**: Native apps eventually, or PWA sufficient?
+3. **PDF viewer**: Build custom or use existing (pdf.js, react-pdf)?
 
 ---
 
@@ -438,15 +436,16 @@ CREATE TABLE library_papers (
 
 | Component | Technology |
 |-----------|------------|
-| API Server | FastAPI (Python) or Hono (TypeScript) |
-| Database | PostgreSQL (Neon or Supabase) |
+| **Hosting** | **Google Cloud Platform** |
+| API Server | Cloud Run (FastAPI) |
+| Database | Cloud SQL (PostgreSQL) |
 | Vector DB | Pinecone |
-| Blob Storage | Cloudflare R2 or AWS S3 |
+| Blob Storage | Cloud Storage (GCS) |
 | PDF Parsing | Reducto |
-| Embeddings | OpenAI ada-002 |
+| Embeddings | OpenAI text-embedding-3-small |
 | Auth | Clerk or Auth.js |
-| Web App | React + Vite + TailwindCSS |
+| Web App | React + Vite + TailwindCSS (Cloud Run or Firebase Hosting) |
 | Desktop App | Electron + Local SQLite + LanceDB |
 | MCP Server | Python (existing codebase) |
-| Job Queue | BullMQ or Celery |
-| Hosting | TBD |
+| Job Queue | Cloud Tasks or Pub/Sub |
+| Secrets | Secret Manager |
