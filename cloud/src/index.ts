@@ -2,7 +2,6 @@ import type { Env, Paper } from "./types";
 import { processPaper, convertAndProcessPaper, deletePaper } from "./pipeline";
 import { PaperIntelligenceMCP } from "./mcp";
 import { handleChat } from "./chat";
-import { HTML } from "./ui";
 export { MarkerContainer } from "./container";
 
 export { PaperIntelligenceMCP };
@@ -26,14 +25,7 @@ export default {
       });
     }
 
-    // UI — no auth required (auth is in the UI itself)
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-      return new Response(HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
-
-    // Auth check for all API routes
+    // Auth check for all API routes (static assets are served by wrangler automatically)
     const authHeader = request.headers.get("Authorization");
     if (authHeader !== `Bearer ${env.API_TOKEN}`) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });

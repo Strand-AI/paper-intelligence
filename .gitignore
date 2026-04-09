@@ -39,3 +39,5 @@ Thumbs.db
 # Cloud worker
 cloud/node_modules/
 cloud/.wrangler/
+cloud/public/
+cloud/app/node_modules/

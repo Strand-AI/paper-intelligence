@@ -77,6 +77,11 @@
     "binding": "AI"
   },
 
+  // Static assets (React app build output)
+  "assets": {
+    "directory": "./public"
+  },
+
   "observability": {
     "enabled": true
   }
