@@ -1,0 +1,65 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "paper-intelligence",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-09",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Durable Objects — MCP agent (+ Marker container when enabled)
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "PaperIntelligenceMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["PaperIntelligenceMCP"],
+      "tag": "v1"
+    },
+    {
+      "new_sqlite_classes": ["MarkerContainer"],
+      "tag": "v2"
+    },
+    {
+      "deleted_classes": ["MarkerContainer"],
+      "tag": "v3"
+    }
+  ],
+
+  // D1 — paper metadata, headers, markdown text
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "paper-intelligence",
+      "database_id": "1642e3af-bdb2-43aa-aa6a-7c944dec35a2"
+    }
+  ],
+
+  // R2 — PDF and image storage
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "paper-intelligence"
+    }
+  ],
+
+  // Vectorize — semantic search vectors
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "paper-intelligence"
+    }
+  ],
+
+  // Workers AI — embedding generation
+  "ai": {
+    "binding": "AI"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

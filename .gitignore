@@ -35,3 +35,7 @@ Thumbs.db
 # Model cache (large files)
 .cache/
 *.onnx
+
+# Cloud worker
+cloud/node_modules/
+cloud/.wrangler/
