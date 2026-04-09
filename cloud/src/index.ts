@@ -3,8 +3,7 @@ import { processPaper, convertAndProcessPaper, deletePaper } from "./pipeline";
 import { PaperIntelligenceMCP } from "./mcp";
 import { handleChat } from "./chat";
 import { HTML } from "./ui";
-// Uncomment when Containers beta is enabled:
-// export { MarkerContainer } from "./container";
+export { MarkerContainer } from "./container";
 
 export { PaperIntelligenceMCP };
 

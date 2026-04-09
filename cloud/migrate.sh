@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Paper Intelligence Cloud — Migration Script
 # Uploads locally processed papers to the cloud backend.
+# For each paper, uploads markdown (for indexing) and PDF (for viewing) when available.
 #
 # Usage: ./migrate.sh [papers_dir]
 #   papers_dir: path to papers directory (default: ~/Documents/papers)
@@ -13,7 +14,7 @@ API_TOKEN="${PAPER_INTELLIGENCE_TOKEN:-}"
 
 # Try to get API token from 1Password if not set
 if [ -z "$API_TOKEN" ]; then
-  API_TOKEN=$(op read "op://CLI Secrets/paper-intelligence-api-token/token" 2>/dev/null || true)
+  API_TOKEN=$(op read "op://CLI Secrets/Paper Intelligence Cloud API Token/credential" 2>/dev/null || true)
 fi
 
 if [ -z "$API_URL" ]; then
@@ -38,6 +39,7 @@ FAIL=0
 for dir in "$PAPERS_DIR"/*/; do
   name=$(basename "$dir")
   md="$dir/paper.md"
+  pdf="$PAPERS_DIR/${name}.pdf"
 
   if [ ! -f "$md" ]; then
     echo "SKIP  $name (no paper.md)"
@@ -45,13 +47,21 @@ for dir in "$PAPERS_DIR"/*/; do
     continue
   fi
 
-  echo -n "UPLOAD $name... "
-
-  RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/papers" \
-    -H "Authorization: Bearer $API_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$(jq -n --arg name "$name" --rawfile markdown "$md" \
-      '{name: $name, markdown: $markdown}')")
+  if [ -f "$pdf" ]; then
+    echo -n "UPLOAD $name (md+pdf)... "
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/papers" \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -F "name=$name" \
+      -F "file=@$pdf" \
+      -F "markdown=<$md")
+  else
+    echo -n "UPLOAD $name (md only)... "
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/papers" \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "$(jq -n --arg name "$name" --rawfile markdown "$md" \
+        '{name: $name, markdown: $markdown}')")
+  fi
 
   HTTP_CODE=$(echo "$RESPONSE" | tail -1)
   BODY=$(echo "$RESPONSE" | sed '$d')

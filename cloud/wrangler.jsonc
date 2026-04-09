@@ -5,12 +5,16 @@
   "compatibility_date": "2026-04-09",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Durable Objects — MCP agent (+ Marker container when enabled)
+  // Durable Objects — MCP agent + Marker container
   "durable_objects": {
     "bindings": [
       {
         "class_name": "PaperIntelligenceMCP",
         "name": "MCP_OBJECT"
+      },
+      {
+        "class_name": "MarkerContainer",
+        "name": "MARKER_CONTAINER"
       }
     ]
   },
@@ -26,6 +30,20 @@
     {
       "deleted_classes": ["MarkerContainer"],
       "tag": "v3"
+    },
+    {
+      "new_sqlite_classes": ["MarkerContainer"],
+      "tag": "v4"
+    }
+  ],
+
+  // Marker PDF conversion container
+  "containers": [
+    {
+      "class_name": "MarkerContainer",
+      "image": "./container/Dockerfile",
+      "max_instances": 2,
+      "instance_type": "standard-4"
     }
   ],
 

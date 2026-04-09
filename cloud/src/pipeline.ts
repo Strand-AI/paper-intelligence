@@ -379,9 +379,9 @@ export async function deletePaper(env: Env, paperId: string): Promise<void> {
   const chunkCount = (paper.chunk_count as number) ?? 0;
   if (chunkCount > 0) {
     const ids = Array.from({ length: chunkCount }, (_, i) => `${paperId}_${i}`);
-    // Vectorize deleteByIds batch limit
-    for (let i = 0; i < ids.length; i += 1000) {
-      await env.VECTORIZE.deleteByIds(ids.slice(i, i + 1000));
+    // Vectorize deleteByIds limit is 100 per call
+    for (let i = 0; i < ids.length; i += 100) {
+      await env.VECTORIZE.deleteByIds(ids.slice(i, i + 100));
     }
   }
 
