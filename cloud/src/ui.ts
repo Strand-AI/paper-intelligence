@@ -23,10 +23,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .auth-box input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 1rem; }
 .auth-box button { width: 100%; padding: 0.75rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 
-/* Layout: sidebar | main content area | chat */
-#app { display: none; height: 100vh; grid-template-columns: 260px 1fr 380px; grid-template-rows: 48px 1fr; }
+/* Layout: sidebar | main content area | chat (optional) */
+#app { display: none; height: 100vh; grid-template-columns: 260px 1fr; grid-template-rows: 48px 1fr; }
 #app.active { display: grid; }
-#app.chat-collapsed { grid-template-columns: 260px 1fr 44px; }
+#app.chat-open { grid-template-columns: 260px 1fr 380px; }
 header { grid-column: 1 / -1; background: var(--header); color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 1rem; }
 header h1 { font-size: 15px; font-weight: 600; }
 .header-right { display: flex; align-items: center; gap: 0.75rem; }
@@ -64,8 +64,8 @@ header h1 { font-size: 15px; font-weight: 600; }
 .view-toggle button { padding: 4px 12px; border: none; background: #fff; font-size: 12px; cursor: pointer; color: var(--text); }
 .view-toggle button.active { background: var(--accent); color: #fff; }
 .view-toggle button:not(:last-child) { border-right: 1px solid var(--border); }
-#outline-toggle { padding: 4px 10px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text); }
-#outline-toggle.active { background: #eff6ff; border-color: var(--accent); color: var(--accent); }
+#outline-toggle, #chat-toggle { padding: 4px 10px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text); }
+#outline-toggle.active, #chat-toggle.active { background: #eff6ff; border-color: var(--accent); color: var(--accent); }
 
 /* Main body: outline + content */
 #main-body { flex: 1; display: flex; overflow: hidden; }
@@ -98,15 +98,13 @@ header h1 { font-size: 15px; font-weight: 600; }
 #content .md-view { max-width: 860px; }
 #pdf-frame { width: 100%; height: 100%; border: none; }
 
-/* Chat panel (right side) */
-#chat { border-left: 1px solid var(--border); background: var(--chat-bg); display: flex; flex-direction: column; overflow: hidden; transition: width 0.15s; }
-#chat-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; cursor: pointer; font-size: 13px; font-weight: 600; user-select: none; border-bottom: 1px solid var(--border); background: #fff; }
+/* Chat panel (right side, hidden by default) */
+#chat { display: none; border-left: 1px solid var(--border); background: var(--chat-bg); flex-direction: column; overflow: hidden; }
+#app.chat-open #chat { display: flex; }
+#chat-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 13px; font-weight: 600; user-select: none; border-bottom: 1px solid var(--border); background: #fff; }
 #chat-header .chat-title { display: flex; align-items: center; gap: 6px; }
 #chat-header .chat-context { font-weight: 400; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-#app.chat-collapsed #chat-header { writing-mode: vertical-rl; text-orientation: mixed; padding: 14px 10px; border-bottom: none; border-left: none; height: 100%; }
-#app.chat-collapsed #chat-header .chat-context { display: none; }
 #chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-#app.chat-collapsed #chat-messages, #app.chat-collapsed #chat-input-row { display: none; }
 .msg { padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.6; max-width: 95%; }
 .msg.user { background: var(--user-msg); align-self: flex-end; border-bottom-right-radius: 4px; }
 .msg.assistant { background: var(--ai-msg); align-self: flex-start; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
@@ -172,6 +170,7 @@ header h1 { font-size: 15px; font-weight: 600; }
         <button class="active" onclick="setView('md')">Markdown</button>
         <button onclick="setView('pdf')">PDF</button>
       </div>
+      <button id="chat-toggle" onclick="toggleChat()">Chat</button>
     </div>
     <div id="main-body">
       <div id="outline"></div>
@@ -180,7 +179,7 @@ header h1 { font-size: 15px; font-weight: 600; }
   </div>
 
   <div id="chat">
-    <div id="chat-header" onclick="toggleChat()">
+    <div id="chat-header">
       <div class="chat-title">Chat</div>
       <div class="chat-context" id="chat-context-label"></div>
     </div>
@@ -317,7 +316,6 @@ async function selectPaper(id) {
 
   chatHistory = [];
   document.getElementById('chat-messages').innerHTML = '';
-  document.getElementById('app').classList.remove('chat-collapsed');
 }
 
 function renderContent(data) {
@@ -380,7 +378,8 @@ function updateViewToggle() {
 }
 
 function toggleChat() {
-  document.getElementById('app').classList.toggle('chat-collapsed');
+  document.getElementById('app').classList.toggle('chat-open');
+  document.getElementById('chat-toggle').classList.toggle('active');
 }
 
 // Alias
