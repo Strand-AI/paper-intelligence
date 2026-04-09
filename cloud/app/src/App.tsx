@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
@@ -11,6 +11,7 @@ import {
   Pencil,
   X,
 } from "lucide-react";
+import Fuse from "fuse.js";
 import {
   listPapers,
   getPaperContent,
@@ -21,7 +22,7 @@ import {
   type Paper,
   type Header,
 } from "./api";
-import { cn, fuzzyMatch, displayName } from "./lib/utils";
+import { cn, displayName } from "./lib/utils";
 
 export function App() {
   const [token, setToken] = useState(
@@ -136,19 +137,23 @@ function Main({ token, onLogout }: { token: string; onLogout: () => void }) {
     }
   }
 
-  // Filter + fuzzy sort
+  // Fuse.js fuzzy search
+  const fuse = useMemo(
+    () =>
+      new Fuse(papers, {
+        keys: [
+          { name: "title", weight: 2 },
+          { name: "alias", weight: 2 },
+          { name: "name", weight: 1 },
+        ],
+        threshold: 0.4,
+        ignoreLocation: true,
+      }),
+    [papers],
+  );
+
   const filteredPapers = filter.trim()
-    ? papers
-        .map((p) => ({
-          p,
-          score: Math.max(
-            fuzzyMatch(displayName(p), filter),
-            fuzzyMatch(p.name, filter),
-          ),
-        }))
-        .filter((x) => x.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map((x) => x.p)
+    ? fuse.search(filter).map((r) => r.item)
     : papers;
 
   // Alias save
