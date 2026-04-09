@@ -369,7 +369,7 @@ function renderContent(data) {
         headers: { 'Authorization': 'Bearer ' + TOKEN }
       }).then(r => r.blob()).then(blob => {
         const url = URL.createObjectURL(blob);
-        content.innerHTML = '<iframe id="pdf-frame" src="' + url + '"></iframe>';
+        content.innerHTML = '<iframe id="pdf-frame" src="' + url + '#navpanes=0"></iframe>';
       }).catch(() => {
         content.innerHTML = '<p style="padding:32px;color:var(--muted)">Error loading PDF</p>';
       });
