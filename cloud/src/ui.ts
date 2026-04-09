@@ -331,14 +331,14 @@ document.getElementById('paper-search').addEventListener('input', e => renderPap
 
 async function selectPaper(id) {
   activePaperId = id;
-  activeView = 'md';
+  const paper = papers.find(p => p.id === id);
+  activeView = (paper && paper.pdf_key) ? 'pdf' : 'md';
   renderPaperList();
   document.getElementById('toolbar').classList.add('active');
   const content = document.getElementById('content');
   content.className = '';
   content.innerHTML = '<p style="color:var(--muted);padding:32px">Loading...</p>';
 
-  const paper = papers.find(p => p.id === id);
   document.getElementById('display-name-text').textContent = displayName(paper);
   document.getElementById('chat-context-label').textContent = displayName(paper);
 
