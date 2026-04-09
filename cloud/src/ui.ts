@@ -267,13 +267,39 @@ async function init() {
   startPollingIfNeeded();
 }
 
+function fuzzyMatch(text, query) {
+  let qi = 0;
+  let score = 0;
+  let lastMatch = -1;
+  const tl = text.toLowerCase();
+  const ql = query.toLowerCase();
+  for (let ti = 0; ti < tl.length && qi < ql.length; ti++) {
+    if (tl[ti] === ql[qi]) {
+      score += (ti === lastMatch + 1) ? 2 : 1; // bonus for consecutive
+      if (ti === 0 || tl[ti - 1] === ' ' || tl[ti - 1] === '-' || tl[ti - 1] === '_') score += 3; // word boundary bonus
+      lastMatch = ti;
+      qi++;
+    }
+  }
+  return qi === ql.length ? score : 0;
+}
+
 function renderPaperList(filter) {
-  const f = (filter || document.getElementById('paper-search').value).toLowerCase();
-  const filtered = papers.filter(p => {
-    const dn = displayName(p).toLowerCase();
-    const nm = (p.name || '').toLowerCase();
-    return !f || dn.includes(f) || nm.includes(f);
-  });
+  const f = (filter || document.getElementById('paper-search').value).trim();
+  let filtered;
+  if (!f) {
+    filtered = papers.slice();
+  } else {
+    filtered = papers
+      .map(p => {
+        const s1 = fuzzyMatch(displayName(p), f);
+        const s2 = fuzzyMatch(p.name || '', f);
+        return { p, score: Math.max(s1, s2) };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.p);
+  }
   document.getElementById('paper-count').textContent = filtered.length + ' paper' + (filtered.length !== 1 ? 's' : '');
   const list = document.getElementById('paper-list');
   list.innerHTML = filtered.map(p => {
