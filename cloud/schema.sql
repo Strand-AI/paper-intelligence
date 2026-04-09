@@ -3,6 +3,8 @@
 CREATE TABLE IF NOT EXISTS papers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  title TEXT,                       -- auto-parsed from first H1
+  alias TEXT,                       -- user-set display name
   pdf_key TEXT,
   markdown_key TEXT,
   markdown_text TEXT,              -- full markdown for grep search

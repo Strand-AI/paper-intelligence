@@ -10,7 +10,7 @@ export const HTML = `<!DOCTYPE html>
 :root {
   --bg: #f8f9fa; --sidebar: #fff; --content: #fff; --header: #1a1a2e;
   --accent: #3b82f6; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb;
-  --chat-bg: #f3f4f6; --user-msg: #dbeafe; --ai-msg: #fff;
+  --chat-bg: #f9fafb; --user-msg: #dbeafe; --ai-msg: #fff;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 }
 body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
@@ -23,30 +23,66 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); heig
 .auth-box input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 1rem; }
 .auth-box button { width: 100%; padding: 0.75rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 
-/* Layout */
-#app { display: none; height: 100vh; grid-template-columns: 280px 1fr; grid-template-rows: 48px 1fr; }
+/* Layout: sidebar | main content area | chat */
+#app { display: none; height: 100vh; grid-template-columns: 260px 1fr 380px; grid-template-rows: 48px 1fr; }
 #app.active { display: grid; }
+#app.chat-collapsed { grid-template-columns: 260px 1fr 44px; }
 header { grid-column: 1 / -1; background: var(--header); color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 1rem; }
-header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+header h1 { font-size: 15px; font-weight: 600; }
 .header-right { display: flex; align-items: center; gap: 0.75rem; }
-.header-right select { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 6px; font-size: 13px; }
-.header-right button { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.header-right select, .header-right button { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 
 /* Sidebar */
-#sidebar { background: var(--sidebar); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+#sidebar { background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 .sidebar-search { padding: 0.75rem; border-bottom: 1px solid var(--border); }
 .sidebar-search input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+.paper-count { padding: 6px 16px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; }
 .paper-list { flex: 1; overflow-y: auto; }
-.paper-item { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.4; }
+.paper-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.4; }
 .paper-item:hover { background: var(--bg); }
 .paper-item.active { background: #eff6ff; border-left: 3px solid var(--accent); }
-.paper-item .status { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.paper-item .paper-title { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.paper-item .status { font-size: 11px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
 .paper-item .status.ready { color: #10b981; }
+.paper-item .status.error { color: #ef4444; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.status-dot.ready { background: #10b981; }
+.status-dot.error { background: #ef4444; }
+.status-dot.processing { background: #f59e0b; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* Main */
+/* Main content area */
 #main { display: flex; flex-direction: column; overflow: hidden; }
-#content { flex: 1; overflow-y: auto; padding: 2rem; max-width: 900px; }
-#content.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 15px; max-width: none; }
+
+/* Toolbar */
+#toolbar { display: none; padding: 8px 16px; border-bottom: 1px solid var(--border); background: #fff; align-items: center; gap: 12px; font-size: 13px; min-height: 44px; }
+#toolbar.active { display: flex; }
+#toolbar .paper-display-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#toolbar .paper-display-name .edit-alias { display: none; cursor: pointer; color: var(--muted); margin-left: 4px; font-size: 11px; }
+#toolbar .paper-display-name:hover .edit-alias { display: inline; }
+.view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.view-toggle button { padding: 4px 12px; border: none; background: #fff; font-size: 12px; cursor: pointer; color: var(--text); }
+.view-toggle button.active { background: var(--accent); color: #fff; }
+.view-toggle button:not(:last-child) { border-right: 1px solid var(--border); }
+#outline-toggle { padding: 4px 10px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text); }
+#outline-toggle.active { background: #eff6ff; border-color: var(--accent); color: var(--accent); }
+
+/* Main body: outline + content */
+#main-body { flex: 1; display: flex; overflow: hidden; }
+
+/* Outline / TOC */
+#outline { width: 0; overflow-y: auto; overflow-x: hidden; border-right: 1px solid var(--border); background: var(--sidebar); transition: width 0.15s; flex-shrink: 0; }
+#outline.open { width: 220px; padding: 12px 0; }
+#outline .toc-item { padding: 5px 14px; font-size: 12px; line-height: 1.4; cursor: pointer; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#outline .toc-item:hover { color: var(--text); background: var(--bg); }
+#outline .toc-item.active { color: var(--accent); font-weight: 500; }
+#outline .toc-item.l2 { padding-left: 26px; }
+#outline .toc-item.l3 { padding-left: 38px; }
+#outline .toc-item.l4 { padding-left: 50px; }
+
+/* Content viewer */
+#content { flex: 1; overflow-y: auto; padding: 2rem; }
+#content.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 15px; }
 #content h1 { font-size: 1.5rem; margin: 1.5rem 0 0.75rem; }
 #content h2 { font-size: 1.3rem; margin: 1.25rem 0 0.5rem; }
 #content h3 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
@@ -59,25 +95,38 @@ header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 #content th, #content td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
 #content th { background: var(--bg); font-weight: 600; }
 #content img { max-width: 100%; border-radius: 8px; margin: 0.5rem 0; }
+#content .md-view { max-width: 860px; }
+#pdf-frame { width: 100%; height: 100%; border: none; }
 
-/* Chat */
-#chat { border-top: 1px solid var(--border); background: var(--chat-bg); display: flex; flex-direction: column; height: 300px; transition: height 0.2s; }
-#chat.collapsed { height: 42px; }
-#chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600; user-select: none; }
-#chat-header span:last-child { color: var(--muted); font-weight: 400; }
-#chat-messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-#chat.collapsed #chat-messages, #chat.collapsed #chat-input-row { display: none; }
-.msg { padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.6; max-width: 85%; white-space: pre-wrap; }
-.msg.user { background: var(--user-msg); align-self: flex-end; }
-.msg.assistant { background: var(--ai-msg); align-self: flex-start; border: 1px solid var(--border); }
+/* Chat panel (right side) */
+#chat { border-left: 1px solid var(--border); background: var(--chat-bg); display: flex; flex-direction: column; overflow: hidden; transition: width 0.15s; }
+#chat-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; cursor: pointer; font-size: 13px; font-weight: 600; user-select: none; border-bottom: 1px solid var(--border); background: #fff; }
+#chat-header .chat-title { display: flex; align-items: center; gap: 6px; }
+#chat-header .chat-context { font-weight: 400; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+#app.chat-collapsed #chat-header { writing-mode: vertical-rl; text-orientation: mixed; padding: 14px 10px; border-bottom: none; border-left: none; height: 100%; }
+#app.chat-collapsed #chat-header .chat-context { display: none; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+#app.chat-collapsed #chat-messages, #app.chat-collapsed #chat-input-row { display: none; }
+.msg { padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.6; max-width: 95%; }
+.msg.user { background: var(--user-msg); align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg.assistant { background: var(--ai-msg); align-self: flex-start; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .msg.assistant p { margin: 0.25rem 0; }
 .msg.assistant p:first-child { margin-top: 0; }
-#chat-input-row { display: flex; gap: 8px; padding: 8px 16px 12px; }
-#chat-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: var(--font); resize: none; }
-#chat-send { padding: 8px 20px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.msg.assistant code { font-size: 12px; }
+#chat-input-row { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: #fff; }
+#chat-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: var(--font); resize: none; min-height: 40px; max-height: 120px; }
+#chat-send { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; align-self: flex-end; }
 #chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.paper-count { padding: 8px 16px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
+/* Alias edit modal */
+#alias-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 50; align-items: center; justify-content: center; }
+#alias-modal.open { display: flex; }
+#alias-modal .modal-box { background: #fff; padding: 1.5rem; border-radius: 12px; width: 400px; max-width: 90vw; }
+#alias-modal input { width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; margin: 0.75rem 0; }
+#alias-modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#alias-modal button { padding: 6px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+#alias-modal .btn-save { background: var(--accent); color: #fff; border: none; }
+#alias-modal .btn-cancel { background: #fff; border: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -86,7 +135,8 @@ header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
   <div class="auth-box">
     <h2>Paper Intelligence</h2>
     <p style="color:#6b7280;margin-bottom:1rem;font-size:14px">Enter your API token to continue.</p>
-    <input type="password" id="auth-token" placeholder="Bearer token" autofocus>
+    <input type="password" id="auth-token" placeholder="Bearer token" autofocus
+      onkeydown="if(event.key==='Enter')login()">
     <button onclick="login()">Continue</button>
   </div>
 </div>
@@ -104,23 +154,53 @@ header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
       <button onclick="logout()">Logout</button>
     </div>
   </header>
+
   <div id="sidebar">
     <div class="sidebar-search"><input type="text" id="paper-search" placeholder="Filter papers..."></div>
     <div class="paper-count" id="paper-count"></div>
     <div class="paper-list" id="paper-list"></div>
   </div>
+
   <div id="main">
-    <div id="content" class="empty">Select a paper from the sidebar</div>
-    <div id="chat" class="collapsed">
-      <div id="chat-header" onclick="toggleChat()">
-        <span>Chat</span>
-        <span id="chat-context-label">Select a paper to chat</span>
+    <div id="toolbar">
+      <button id="outline-toggle" onclick="toggleOutline()">Outline</button>
+      <span class="paper-display-name" id="paper-display-name">
+        <span id="display-name-text"></span>
+        <span class="edit-alias" onclick="openAliasModal()">&boxbox; rename</span>
+      </span>
+      <div class="view-toggle" id="view-toggle" style="display:none">
+        <button class="active" onclick="setView('md')">Markdown</button>
+        <button onclick="setView('pdf')">PDF</button>
       </div>
-      <div id="chat-messages"></div>
-      <div id="chat-input-row">
-        <textarea id="chat-input" rows="1" placeholder="Ask about this paper..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-        <button id="chat-send" onclick="sendChat()">Send</button>
-      </div>
+    </div>
+    <div id="main-body">
+      <div id="outline"></div>
+      <div id="content" class="empty">Select a paper from the sidebar</div>
+    </div>
+  </div>
+
+  <div id="chat">
+    <div id="chat-header" onclick="toggleChat()">
+      <div class="chat-title">Chat</div>
+      <div class="chat-context" id="chat-context-label"></div>
+    </div>
+    <div id="chat-messages"></div>
+    <div id="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Ask about this paper..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+      <button id="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div id="alias-modal">
+  <div class="modal-box">
+    <div style="font-weight:600;font-size:15px">Rename Paper</div>
+    <input type="text" id="alias-input" placeholder="Display name (leave empty to use auto-detected title)">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAliasModal()">Cancel</button>
+      <button class="btn-save" onclick="saveAlias()">Save</button>
     </div>
   </div>
 </div>
@@ -129,12 +209,23 @@ header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 let TOKEN = localStorage.getItem('pi_token') || '';
 let papers = [];
 let activePaperId = null;
+let activeView = 'md';
+let cachedContent = {};
 let chatHistory = [];
+let pollTimer = null;
 
 const API = '';
 
-function headers() {
-  return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+function headers() { return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }; }
+
+function displayName(p) {
+  return p.alias || p.title || p.name.replace(/_/g, ' ').replace(/-/g, ' ');
+}
+
+function statusInfo(s) {
+  const map = { uploading: 'Uploading', converting: 'Converting PDF', indexing: 'Indexing', embedding: 'Embedding', ready: 'Ready', error: 'Error' };
+  const processing = ['uploading','converting','indexing','embedding'].includes(s);
+  return { label: map[s] || s, processing, cls: s === 'ready' ? 'ready' : s === 'error' ? 'error' : 'processing' };
 }
 
 // Auth
@@ -149,11 +240,7 @@ function login() {
   init();
 }
 
-function logout() {
-  TOKEN = '';
-  localStorage.removeItem('pi_token');
-  location.reload();
-}
+function logout() { TOKEN = ''; localStorage.removeItem('pi_token'); location.reload(); }
 
 async function init() {
   const res = await fetch(API + '/papers', { headers: headers() });
@@ -161,52 +248,162 @@ async function init() {
   const data = await res.json();
   papers = data.papers || [];
   renderPaperList();
+  startPollingIfNeeded();
 }
 
-function renderPaperList(filter = '') {
+function renderPaperList(filter) {
+  const f = (filter || document.getElementById('paper-search').value).toLowerCase();
+  const filtered = papers.filter(p => {
+    const dn = displayName(p).toLowerCase();
+    const nm = (p.name || '').toLowerCase();
+    return !f || dn.includes(f) || nm.includes(f);
+  });
+  document.getElementById('paper-count').textContent = filtered.length + ' paper' + (filtered.length !== 1 ? 's' : '');
   const list = document.getElementById('paper-list');
-  const f = filter.toLowerCase();
-  const filtered = papers.filter(p => !f || p.name.toLowerCase().includes(f));
-  document.getElementById('paper-count').textContent = filtered.length + ' papers';
-  list.innerHTML = filtered.map(p =>
-    '<div class="paper-item' + (p.id === activePaperId ? ' active' : '') + '" onclick="selectPaper(\\'' + p.id + '\\')">' +
-      '<div>' + p.name.replace(/_/g, ' ').replace(/-/g, ' ') + '</div>' +
-      '<div class="status ' + p.status + '">' + p.status + (p.chunk_count ? ' · ' + p.chunk_count + ' chunks' : '') + '</div>' +
-    '</div>'
-  ).join('');
+  list.innerHTML = filtered.map(p => {
+    const si = statusInfo(p.status);
+    return '<div class="paper-item' + (p.id === activePaperId ? ' active' : '') + '" onclick="selectPaper(\\'' + p.id + '\\')">' +
+      '<div class="paper-title">' + escapeHtml(displayName(p)) + '</div>' +
+      '<div class="status ' + si.cls + '"><span class="status-dot ' + si.cls + '"></span>' + si.label +
+      (p.chunk_count ? ' &middot; ' + p.chunk_count + ' chunks' : '') + '</div></div>';
+  }).join('');
+}
+
+function startPollingIfNeeded() {
+  if (pollTimer) clearInterval(pollTimer);
+  const hasProcessing = papers.some(p => ['uploading','converting','indexing','embedding'].includes(p.status));
+  if (!hasProcessing) return;
+  pollTimer = setInterval(async () => {
+    const res = await fetch(API + '/papers', { headers: headers() });
+    if (!res.ok) return;
+    const data = await res.json();
+    papers = data.papers || [];
+    renderPaperList();
+    if (!papers.some(p => ['uploading','converting','indexing','embedding'].includes(p.status))) {
+      clearInterval(pollTimer); pollTimer = null;
+    }
+  }, 3000);
 }
 
 document.getElementById('paper-search').addEventListener('input', e => renderPaperList(e.target.value));
 
 async function selectPaper(id) {
   activePaperId = id;
-  renderPaperList(document.getElementById('paper-search').value);
+  activeView = 'md';
+  renderPaperList();
+  const toolbar = document.getElementById('toolbar');
+  toolbar.classList.add('active');
   const content = document.getElementById('content');
   content.className = '';
-  content.innerHTML = '<p style="color:#6b7280">Loading...</p>';
+  content.innerHTML = '<p style="color:#6b7280;padding:2rem">Loading...</p>';
 
-  const res = await fetch(API + '/papers/' + id + '/content', { headers: headers() });
-  if (!res.ok) { content.innerHTML = '<p>Error loading paper</p>'; return; }
-  const data = await res.json();
-  content.innerHTML = marked.parse(data.markdown || '');
-
-  // Update chat context
   const paper = papers.find(p => p.id === id);
-  document.getElementById('chat-context-label').textContent = paper ? paper.name.replace(/_/g, ' ') : '';
+  document.getElementById('display-name-text').textContent = displayName(paper);
+  document.getElementById('chat-context-label').textContent = displayName(paper);
+
+  // Show PDF toggle if PDF exists
+  const vt = document.getElementById('view-toggle');
+  vt.style.display = paper && paper.pdf_key ? 'flex' : 'none';
+  updateViewToggle();
+
+  // Fetch content + headers
+  const res = await fetch(API + '/papers/' + id + '/content', { headers: headers() });
+  if (!res.ok) { content.innerHTML = '<p style="padding:2rem">Error loading paper</p>'; return; }
+  const data = await res.json();
+  cachedContent[id] = data;
+
+  renderContent(data);
+  renderOutline(data.headers || []);
+
   chatHistory = [];
   document.getElementById('chat-messages').innerHTML = '';
-  document.getElementById('chat').classList.remove('collapsed');
+  document.getElementById('app').classList.remove('chat-collapsed');
+}
+
+function renderContent(data) {
+  const content = document.getElementById('content');
+  if (activeView === 'pdf') {
+    const paper = papers.find(p => p.id === activePaperId);
+    if (paper && paper.pdf_key) {
+      content.innerHTML = '<iframe id="pdf-frame" src="/papers/' + activePaperId + '/pdf"></iframe>';
+      content.style.padding = '0';
+    } else {
+      content.innerHTML = '<p style="padding:2rem;color:var(--muted)">No PDF available</p>';
+    }
+  } else {
+    content.style.padding = '2rem';
+    content.innerHTML = '<div class="md-view">' + marked.parse(data.markdown || '') + '</div>';
+    // Add ids to headings for outline scroll
+    content.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((el, i) => { el.id = 'heading-' + i; });
+  }
+}
+
+function renderOutline(hdrs) {
+  const outline = document.getElementById('outline');
+  if (!hdrs.length) { outline.innerHTML = ''; return; }
+  outline.innerHTML = hdrs.map((h, i) => {
+    const lvl = Math.min(h.level, 4);
+    return '<div class="toc-item l' + lvl + '" onclick="scrollToHeading(' + i + ')" title="' + escapeHtml(h.text) + '">' + escapeHtml(h.text) + '</div>';
+  }).join('');
+}
+
+function scrollToHeading(i) {
+  const el = document.getElementById('heading-' + i);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function toggleOutline() {
+  const outline = document.getElementById('outline');
+  outline.classList.toggle('open');
+  document.getElementById('outline-toggle').classList.toggle('active');
+}
+
+function setView(v) {
+  activeView = v;
+  updateViewToggle();
+  const data = cachedContent[activePaperId];
+  if (data) renderContent(data);
+}
+
+function updateViewToggle() {
+  const btns = document.querySelectorAll('.view-toggle button');
+  btns.forEach(b => b.classList.toggle('active', (activeView === 'md' && b.textContent === 'Markdown') || (activeView === 'pdf' && b.textContent === 'PDF')));
 }
 
 function toggleChat() {
-  document.getElementById('chat').classList.toggle('collapsed');
+  document.getElementById('app').classList.toggle('chat-collapsed');
 }
 
+// Alias
+function openAliasModal() {
+  const paper = papers.find(p => p.id === activePaperId);
+  if (!paper) return;
+  document.getElementById('alias-input').value = paper.alias || '';
+  document.getElementById('alias-modal').classList.add('open');
+  document.getElementById('alias-input').focus();
+}
+function closeAliasModal() { document.getElementById('alias-modal').classList.remove('open'); }
+async function saveAlias() {
+  const alias = document.getElementById('alias-input').value.trim();
+  await fetch(API + '/papers/' + activePaperId, {
+    method: 'PATCH', headers: headers(),
+    body: JSON.stringify({ alias: alias }),
+  });
+  const paper = papers.find(p => p.id === activePaperId);
+  if (paper) paper.alias = alias || null;
+  renderPaperList();
+  document.getElementById('display-name-text').textContent = displayName(paper);
+  document.getElementById('chat-context-label').textContent = displayName(paper);
+  closeAliasModal();
+}
+
+// Chat
 async function sendChat() {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg) return;
   input.value = '';
+  input.style.height = 'auto';
 
   const messages = document.getElementById('chat-messages');
   messages.innerHTML += '<div class="msg user">' + escapeHtml(msg) + '</div>';
@@ -218,13 +415,11 @@ async function sendChat() {
 
   const btn = document.getElementById('chat-send');
   btn.disabled = true;
-
   chatHistory.push({ role: 'user', content: msg });
 
   try {
     const res = await fetch(API + '/chat', {
-      method: 'POST',
-      headers: headers(),
+      method: 'POST', headers: headers(),
       body: JSON.stringify({
         message: msg,
         paper_ids: activePaperId ? [activePaperId] : [],
@@ -234,7 +429,7 @@ async function sendChat() {
     });
 
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       aiMsg.textContent = 'Error: ' + (err.error || res.status);
       btn.disabled = false;
       return;
@@ -276,7 +471,7 @@ async function sendChat() {
 }
 
 function escapeHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 <\/script>
 </body>

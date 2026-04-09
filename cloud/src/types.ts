@@ -16,6 +16,8 @@ export interface Paper {
   pdf_key: string | null;
   markdown_key: string | null;
   markdown_text: string | null;
+  title: string | null;
+  alias: string | null;
   status: "uploading" | "converting" | "indexing" | "embedding" | "ready" | "error";
   error: string | null;
   page_count: number | null;

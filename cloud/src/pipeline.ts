@@ -213,8 +213,19 @@ export async function processPaper(
     // Store markdown in R2 for archival
     await env.BUCKET.put(`papers/${paperId}/paper.md`, markdown);
 
-    // Extract headers
+    // Extract headers and auto-parse title (first H1)
     const headers = extractHeaders(markdown);
+    const firstH1 = headers.find((h) => h.level === 1);
+    if (firstH1) {
+      // Clean markdown/HTML artifacts from title
+      const cleanTitle = firstH1.text
+        .replace(/\*\*/g, "")
+        .replace(/<[^>]+>/g, "")
+        .trim();
+      await env.DB.prepare("UPDATE papers SET title = ? WHERE id = ?")
+        .bind(cleanTitle, paperId)
+        .run();
+    }
 
     // Store headers in D1
     if (headers.length > 0) {
