@@ -15,19 +15,19 @@ os.environ["TORCH_DEVICE"] = "cpu"
 
 app = Flask(__name__)
 
-# Global converter — loaded once on startup
-_converter = None
+# Pre-load models at import time so they're ready before the first request.
+# With gunicorn --preload, this runs once in the master process and is
+# inherited by workers via fork, avoiding per-worker loading overhead.
+print("Loading Marker models...", flush=True)
+from marker.converters.pdf import PdfConverter
+from marker.models import create_model_dict
+from marker.output import text_from_rendered as _text_from_rendered
+
+_converter = PdfConverter(artifact_dict=create_model_dict())
+print("Models loaded.", flush=True)
 
 
 def get_converter():
-    global _converter
-    if _converter is None:
-        from marker.converters.pdf import PdfConverter
-        from marker.models import create_model_dict
-
-        print("Loading Marker models...", flush=True)
-        _converter = PdfConverter(artifact_dict=create_model_dict())
-        print("Models loaded.", flush=True)
     return _converter
 
 
@@ -47,11 +47,9 @@ def convert():
         pdf_path = f.name
 
     try:
-        from marker.output import text_from_rendered
-
         converter = get_converter()
         rendered = converter(pdf_path)
-        markdown_text, _, images = text_from_rendered(rendered)
+        markdown_text, _, images = _text_from_rendered(rendered)
 
         image_list = []
         if images:

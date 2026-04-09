@@ -2,7 +2,7 @@ import { Container } from "@cloudflare/containers";
 
 export class MarkerContainer extends Container {
   defaultPort = 8080;
-  sleepAfter = "5m";
+  sleepAfter = "30m";
 
   override onStart(): void {
     console.log("Marker container started");

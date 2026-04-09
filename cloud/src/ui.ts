@@ -325,8 +325,17 @@ function renderContent(data) {
   if (activeView === 'pdf') {
     const paper = papers.find(p => p.id === activePaperId);
     if (paper && paper.pdf_key) {
-      content.innerHTML = '<iframe id="pdf-frame" src="/papers/' + activePaperId + '/pdf"></iframe>';
+      content.innerHTML = '<p style="padding:2rem;color:var(--muted)">Loading PDF...</p>';
       content.style.padding = '0';
+      // Fetch PDF with auth header, then display via blob URL
+      fetch(API + '/papers/' + activePaperId + '/pdf', {
+        headers: { 'Authorization': 'Bearer ' + TOKEN }
+      }).then(r => r.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        content.innerHTML = '<iframe id="pdf-frame" src="' + url + '"></iframe>';
+      }).catch(() => {
+        content.innerHTML = '<p style="padding:2rem;color:var(--muted)">Error loading PDF</p>';
+      });
     } else {
       content.innerHTML = '<p style="padding:2rem;color:var(--muted)">No PDF available</p>';
     }

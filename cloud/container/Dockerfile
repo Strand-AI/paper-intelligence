@@ -35,5 +35,6 @@ ENV TORCH_DEVICE=cpu
 
 EXPOSE 8080
 
-# Use gunicorn with long timeout for large PDFs
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "600", "--workers", "1", "server:app"]
+# --preload: load app (and models) in master before forking workers
+# --timeout 600: allow up to 10min for large PDF conversions
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "600", "--workers", "1", "--preload", "server:app"]
