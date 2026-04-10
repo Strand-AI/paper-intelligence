@@ -131,12 +131,12 @@ async function resolveSources(
     if (UUID_RE.test(source)) {
       ids.add(source);
     } else {
-      // Name-based lookup (case-insensitive substring)
+      // Match against name, title, or alias (case-insensitive substring)
       const { results } = await db
         .prepare(
-          "SELECT id FROM papers WHERE LOWER(name) LIKE LOWER(?) AND status = 'ready'",
+          "SELECT id FROM papers WHERE (LOWER(name) LIKE LOWER(?) OR LOWER(title) LIKE LOWER(?) OR LOWER(alias) LIKE LOWER(?)) AND status = 'ready'",
         )
-        .bind(`%${source}%`)
+        .bind(`%${source}%`, `%${source}%`, `%${source}%`)
         .all();
       for (const row of results) {
         ids.add(row.id as string);
