@@ -5,13 +5,9 @@
   "compatibility_date": "2026-04-09",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Durable Objects — MCP agent + Marker container
+  // Durable Objects — Marker container only (MCP agent removed)
   "durable_objects": {
     "bindings": [
-      {
-        "class_name": "PaperIntelligenceMCP",
-        "name": "MCP_OBJECT"
-      },
       {
         "class_name": "MarkerContainer",
         "name": "MARKER_CONTAINER"
@@ -34,6 +30,10 @@
     {
       "new_sqlite_classes": ["MarkerContainer"],
       "tag": "v4"
+    },
+    {
+      "deleted_classes": ["PaperIntelligenceMCP"],
+      "tag": "v5"
     }
   ],
 

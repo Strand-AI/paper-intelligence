@@ -9,10 +9,7 @@
     "db:migrate:local": "wrangler d1 execute paper-intelligence --local --file=schema.sql"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.1.0",
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "agents": "^0.9.0",
-    "zod": "^4.0.0"
+    "@cloudflare/containers": "^0.1.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250327.0",

@@ -41,3 +41,9 @@ cloud/node_modules/
 cloud/.wrangler/
 cloud/public/
 cloud/app/node_modules/
+
+# Local MCP server
+mcp-server/node_modules/
+.playwright-mcp/
+.wrangler/
+tea_debug.log

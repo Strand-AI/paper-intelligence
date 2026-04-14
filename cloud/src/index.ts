@@ -1,10 +1,8 @@
 import type { Env, Paper } from "./types";
 import { processPaper, convertAndProcessPaper, deletePaper } from "./pipeline";
-import { PaperIntelligenceMCP } from "./mcp";
+import { search } from "./search";
 import { handleChat } from "./chat";
 export { MarkerContainer } from "./container";
-
-export { PaperIntelligenceMCP };
 
 export default {
   async fetch(
@@ -25,38 +23,36 @@ export default {
       });
     }
 
-    // Auth check for all API routes (static assets are served by wrangler automatically)
+    // Auth check (static assets served by wrangler before this handler)
     const authHeader = request.headers.get("Authorization");
     if (authHeader !== `Bearer ${env.API_TOKEN}`) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // MCP endpoint — Streamable HTTP
-    if (url.pathname.startsWith("/mcp")) {
-      return (
-        PaperIntelligenceMCP.serve("/mcp") as {
-          fetch: (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
-        }
-      ).fetch(request, env, ctx);
+    // Search
+    if (url.pathname === "/search" && request.method === "POST") {
+      return handleSearch(request, env);
     }
 
-    // Chat endpoint
+    // Chat
     if (url.pathname === "/chat" && request.method === "POST") {
       return handleChat(request, env);
     }
 
-    // REST: Upload paper
+    // Upload paper
     if (url.pathname === "/papers" && request.method === "POST") {
       return handleUpload(request, env, ctx);
     }
 
-    // REST: List papers
+    // List papers
     if (url.pathname === "/papers" && request.method === "GET") {
       return handleListPapers(env);
     }
 
-    // Match /papers/:id sub-routes
-    const subMatch = url.pathname.match(/^\/papers\/([\w-]+)\/(content|pdf|headers)$/);
+    // Paper sub-routes
+    const subMatch = url.pathname.match(
+      /^\/papers\/([\w-]+)\/(content|pdf|headers)$/,
+    );
     if (subMatch && request.method === "GET") {
       const [, id, sub] = subMatch;
       if (sub === "content") return handleGetPaperContent(id, env);
@@ -64,7 +60,7 @@ export default {
       if (sub === "headers") return handleGetPaperHeaders(id, env);
     }
 
-    // REST: Get / Update / Delete paper
+    // Paper CRUD
     const paperMatch = url.pathname.match(/^\/papers\/([\w-]+)$/);
     if (paperMatch) {
       const id = paperMatch[1];
@@ -77,7 +73,31 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-// --- REST Handlers ---
+// --- Handlers ---
+
+async function handleSearch(request: Request, env: Env): Promise<Response> {
+  const body = (await request.json()) as {
+    query: string;
+    mode?: "grep" | "rag" | "hybrid";
+    top_k?: number;
+    sources?: string[];
+    case_sensitive?: boolean;
+    regex?: boolean;
+  };
+  if (!body.query) {
+    return Response.json({ error: "Missing 'query'" }, { status: 400 });
+  }
+  const response = await search(
+    env,
+    body.query,
+    body.mode || "hybrid",
+    body.top_k || 5,
+    body.sources || [],
+    body.case_sensitive || false,
+    body.regex || false,
+  );
+  return Response.json(response);
+}
 
 async function handleUpload(
   request: Request,
@@ -96,10 +116,7 @@ async function handleUpload(
       markdown?: string;
     };
     if (!body.name) {
-      return Response.json(
-        { error: "Missing 'name' field" },
-        { status: 400 },
-      );
+      return Response.json({ error: "Missing 'name' field" }, { status: 400 });
     }
     name = body.name;
     markdown = body.markdown ?? null;
@@ -110,9 +127,7 @@ async function handleUpload(
       (formData.get("name") as string) ??
       file?.name?.replace(/\.pdf$/i, "") ??
       "unnamed";
-    if (file) {
-      pdfData = await file.arrayBuffer();
-    }
+    if (file) pdfData = await file.arrayBuffer();
     const md = formData.get("markdown") as string | null;
     if (md) markdown = md;
   } else {
@@ -130,10 +145,7 @@ async function handleUpload(
   }
 
   const id = crypto.randomUUID();
-
-  await env.DB.prepare(
-    "INSERT INTO papers (id, name, status) VALUES (?, ?, ?)",
-  )
+  await env.DB.prepare("INSERT INTO papers (id, name, status) VALUES (?, ?, ?)")
     .bind(id, name, markdown ? "indexing" : "uploading")
     .run();
 
@@ -152,10 +164,7 @@ async function handleUpload(
 
   if (env.MARKER_CONTAINER) {
     ctx.waitUntil(convertAndProcessPaper(env, id, name, pdfData!));
-    return Response.json(
-      { id, name, status: "converting" },
-      { status: 202 },
-    );
+    return Response.json({ id, name, status: "converting" }, { status: 202 });
   }
 
   return Response.json(
@@ -163,8 +172,7 @@ async function handleUpload(
       id,
       name,
       status: "uploading",
-      message:
-        "PDF stored in R2. Marker container not yet enabled — re-upload with 'markdown' field, or enable Containers beta.",
+      message: "PDF stored. Marker container not available — re-upload with 'markdown' field.",
     },
     { status: 202 },
   );
@@ -181,9 +189,7 @@ async function handleGetPaper(id: string, env: Env): Promise<Response> {
   const paper = await env.DB.prepare("SELECT * FROM papers WHERE id = ?")
     .bind(id)
     .first<Paper>();
-  if (!paper) {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!paper) return Response.json({ error: "Not found" }, { status: 404 });
   const { markdown_text: _, ...info } = paper;
   return Response.json(info);
 }
@@ -202,20 +208,14 @@ async function handleUpdatePaper(
   return Response.json({ success: true, id });
 }
 
-async function handleGetPaperContent(
-  id: string,
-  env: Env,
-): Promise<Response> {
+async function handleGetPaperContent(id: string, env: Env): Promise<Response> {
   const paper = await env.DB.prepare(
     "SELECT id, name, title, alias, markdown_text FROM papers WHERE id = ?",
   )
     .bind(id)
     .first();
-  if (!paper) {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!paper) return Response.json({ error: "Not found" }, { status: 404 });
 
-  // Include headers for outline
   const { results: headers } = await env.DB.prepare(
     "SELECT level, text, line_number, path FROM headers WHERE paper_id = ? ORDER BY line_number",
   )
@@ -233,33 +233,22 @@ async function handleGetPaperContent(
 }
 
 async function handleGetPaperPdf(id: string, env: Env): Promise<Response> {
-  const paper = await env.DB.prepare(
-    "SELECT pdf_key FROM papers WHERE id = ?",
-  )
+  const paper = await env.DB.prepare("SELECT pdf_key FROM papers WHERE id = ?")
     .bind(id)
     .first<{ pdf_key: string | null }>();
-
-  if (!paper?.pdf_key) {
+  if (!paper?.pdf_key)
     return Response.json({ error: "No PDF available" }, { status: 404 });
-  }
 
   const obj = await env.BUCKET.get(paper.pdf_key);
-  if (!obj) {
+  if (!obj)
     return Response.json({ error: "PDF not found in R2" }, { status: 404 });
-  }
 
   return new Response(obj.body, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": "inline",
-    },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": "inline" },
   });
 }
 
-async function handleGetPaperHeaders(
-  id: string,
-  env: Env,
-): Promise<Response> {
+async function handleGetPaperHeaders(id: string, env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT level, text, line_number, path FROM headers WHERE paper_id = ? ORDER BY line_number",
   )

@@ -3,7 +3,6 @@ export interface Env {
   BUCKET: R2Bucket;
   VECTORIZE: VectorizeIndex;
   AI: Ai;
-  MCP_OBJECT: DurableObjectNamespace;
   MARKER_CONTAINER: DurableObjectNamespace;
   API_TOKEN: string;
   OPENAI_API_KEY?: string;
