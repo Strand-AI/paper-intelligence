@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Env, Paper } from "./types";
 import { search } from "./search";
+import { convertAndProcessPaper } from "./pipeline";
 
 export class PaperIntelligenceMCP extends McpAgent<Env> {
   server = new McpServer({
@@ -147,6 +148,67 @@ export class PaperIntelligenceMCP extends McpAgent<Env> {
                 null,
                 2,
               ),
+            },
+          ],
+        };
+      },
+    );
+
+    this.server.tool(
+      "upload_paper",
+      "Upload a PDF paper to the library. The PDF is stored in R2 and converted " +
+        "to markdown via Marker automatically. Conversion runs in the background " +
+        "and takes 2-5 minutes. Use list_papers or get_paper_info to check status.",
+      {
+        name: z.string().describe("Paper name (used as identifier)"),
+        pdf_base64: z
+          .string()
+          .describe("Base64-encoded PDF file content"),
+      },
+      async ({ name, pdf_base64 }) => {
+        const id = crypto.randomUUID();
+
+        // Decode base64 to binary
+        const binaryStr = atob(pdf_base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const pdfData = bytes.buffer as ArrayBuffer;
+
+        // Insert paper record
+        await this.env.DB.prepare(
+          "INSERT INTO papers (id, name, status) VALUES (?, ?, 'uploading')",
+        )
+          .bind(id, name)
+          .run();
+
+        // Store PDF in R2
+        const pdfKey = `papers/${id}/paper.pdf`;
+        await this.env.BUCKET.put(pdfKey, pdfData);
+        await this.env.DB.prepare(
+          "UPDATE papers SET pdf_key = ?, status = 'converting' WHERE id = ?",
+        )
+          .bind(pdfKey, id)
+          .run();
+
+        // Kick off conversion in background
+        // Note: this runs asynchronously — the tool returns immediately
+        convertAndProcessPaper(this.env, id, name, pdfData).catch(() => {});
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                success: true,
+                id,
+                name,
+                status: "converting",
+                message:
+                  "PDF uploaded. Conversion is running in the background (2-5 min). " +
+                  "Use list_papers or get_paper_info to check when status becomes 'ready'.",
+              }),
             },
           ],
         };

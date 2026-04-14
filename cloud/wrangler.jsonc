@@ -37,7 +37,7 @@
     }
   ],
 
-  // Marker PDF conversion container
+  // Marker PDF conversion container (requires Docker for deploy)
   "containers": [
     {
       "class_name": "MarkerContainer",
