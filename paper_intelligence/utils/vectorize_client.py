@@ -1,5 +1,6 @@
 """RAG client with local HuggingFace embeddings and Cloudflare Vectorize backend."""
 
+import hashlib
 import json
 import os
 import subprocess
@@ -87,6 +88,13 @@ class VectorizeClient:
             device=self.device,
         )
 
+    @staticmethod
+    def _vector_id(paper_name: str, chunk_index: int) -> str:
+        """Generate a vector ID that fits Vectorize's 64-byte limit."""
+        # Use a short hash of the paper name + chunk index
+        h = hashlib.sha256(paper_name.encode()).hexdigest()[:16]
+        return f"{h}_{chunk_index}"
+
     def embed_and_store(self, documents: list[Document]) -> int:
         """Embed documents locally and store vectors in Vectorize.
 
@@ -98,7 +106,7 @@ class VectorizeClient:
             embedding = self.embed_model.get_text_embedding(text)
             chunk_index = doc.metadata.get("chunk_index", i)
             vectors.append({
-                "id": f"{self.paper_name}_{chunk_index}",
+                "id": self._vector_id(self.paper_name, chunk_index),
                 "values": embedding,
                 "metadata": {
                     "paper_name": self.paper_name,
@@ -139,7 +147,7 @@ class VectorizeClient:
 
     def delete(self, num_chunks: int) -> bool:
         """Delete all vectors for this paper."""
-        ids = [f"{self.paper_name}_{i}" for i in range(num_chunks)]
+        ids = [self._vector_id(self.paper_name, i) for i in range(num_chunks)]
         if ids:
             _worker_request("/delete", {"ids": ids})
         return True
