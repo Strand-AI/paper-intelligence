@@ -35,3 +35,4 @@ Thumbs.db
 # Model cache (large files)
 .cache/
 *.onnx
+worker/node_modules/

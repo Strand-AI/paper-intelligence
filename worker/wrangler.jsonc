@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "paper-intelligence",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-14",
+
+  // Clean up old DOs from previous cloud-mcp-server branch
+  "migrations": [
+    { "new_sqlite_classes": ["PaperIntelligenceMCP"], "tag": "v1" },
+    { "new_sqlite_classes": ["MarkerContainer"], "tag": "v2" },
+    { "deleted_classes": ["MarkerContainer"], "tag": "v3" },
+    { "new_sqlite_classes": ["MarkerContainer"], "tag": "v4" },
+    { "deleted_classes": ["PaperIntelligenceMCP"], "tag": "v5" },
+    { "deleted_classes": ["MarkerContainer"], "tag": "v6" }
+  ],
+
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "paper-intelligence"
+    }
+  ],
+
+  "observability": { "enabled": true }
+}
