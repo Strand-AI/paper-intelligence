@@ -1,5 +1,6 @@
 """PDF to Markdown conversion tool using Marker."""
 
+import hashlib
 import os
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,47 @@ if not os.environ.get("TORCH_DEVICE"):
             os.environ["TORCH_DEVICE"] = "cuda"
     except ImportError:
         pass
+
+
+def pdf_hash(pdf_path: Path) -> str:
+    """Compute SHA-256 hash of a PDF file."""
+    h = hashlib.sha256()
+    with open(pdf_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def find_duplicate(pdf_path: str | Path, papers_dir: str | Path | None = None) -> Optional[str]:
+    """Check if a PDF already exists in the papers library by content hash.
+
+    Args:
+        pdf_path: Path to the PDF to check
+        papers_dir: Directory containing paper subdirectories (default: parent of pdf_path)
+
+    Returns:
+        Name of the existing paper if duplicate found, None otherwise
+    """
+    from ..metadata import read_metadata
+
+    pdf_path = Path(pdf_path).expanduser().resolve()
+    if not pdf_path.exists():
+        return None
+
+    new_hash = pdf_hash(pdf_path)
+
+    if papers_dir is None:
+        papers_dir = pdf_path.parent
+    papers_dir = Path(papers_dir).expanduser().resolve()
+
+    for paper_dir in papers_dir.iterdir():
+        if not paper_dir.is_dir():
+            continue
+        meta = read_metadata(paper_dir)
+        if meta and meta.get("pdf_hash") == new_hash:
+            return paper_dir.name
+
+    return None
 
 
 def get_output_dir(pdf_path: Path) -> Path:
@@ -114,11 +156,12 @@ def convert_pdf(
         from ..metadata import write_metadata
 
         image_count = len(images) if images else 0
+        content_hash = pdf_hash(pdf_path)
         write_metadata(
             paper_dir=out_dir,
             source_pdf=pdf_path.name,
             steps_completed=["convert"],
-            extra={"image_count": image_count},
+            extra={"image_count": image_count, "pdf_hash": content_hash},
         )
 
         return {

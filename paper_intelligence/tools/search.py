@@ -27,12 +27,18 @@ def _process_paper_if_needed(
     Returns:
         Tuple of (paper_dir, error_message). If error, paper_dir is None.
     """
-    from .convert import convert_pdf, get_output_dir
+    from .convert import convert_pdf, find_duplicate, get_output_dir
     from .embed import embed_document
     from .index import index_markdown
 
     # Handle PDF files
     if path.is_file() and path.suffix.lower() == ".pdf":
+        # Check for duplicate by content hash
+        dup = find_duplicate(path, papers_dir=path.parent)
+        if dup:
+            dup_dir = path.parent / dup
+            return dup_dir, None
+
         paper_dir = get_output_dir(path)
 
         # Check if already processed and compatible
