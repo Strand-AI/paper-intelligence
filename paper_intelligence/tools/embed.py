@@ -1,8 +1,12 @@
-"""Document embedding tool using local HuggingFace model + Cloudflare Vectorize."""
+"""Document embedding tool using LlamaIndex with ChromaDB.
+
+Embeddings are stored in each paper's directory for self-containment.
+"""
 
 from pathlib import Path
+from typing import Optional
 
-from ..utils.vectorize_client import VectorizeClient, create_documents_from_markdown
+from ..utils.chromadb_client import RAGClient, create_documents_from_markdown
 
 
 def embed_document(
@@ -10,7 +14,10 @@ def embed_document(
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> dict:
-    """Embed a markdown document locally and store vectors in Cloudflare Vectorize.
+    """Create embeddings for a markdown document and store in local ChromaDB.
+
+    Embeddings are stored in the same directory as the markdown file
+    under a 'chroma/' subdirectory for self-containment.
 
     Args:
         markdown_path: Path to the markdown file
@@ -18,46 +25,66 @@ def embed_document(
         chunk_overlap: Overlap between chunks
 
     Returns:
-        Dictionary with num_chunks, success, message, device
+        Dictionary with:
+        - db_path: Path to the ChromaDB storage
+        - num_chunks: Number of chunks embedded
+        - success: Boolean
+        - message: Status message
     """
     md_path = Path(markdown_path).expanduser().resolve()
 
     if not md_path.exists():
         return {
+            "db_path": None,
             "num_chunks": 0,
             "success": False,
             "message": f"Markdown file not found: {markdown_path}",
         }
 
-    paper_name = md_path.parent.name
+    # Store embeddings in the paper's directory
+    paper_dir = md_path.parent
+    chroma_dir = paper_dir / "chroma"
 
     try:
-        client = VectorizeClient(
-            paper_name=paper_name,
+        # Create RAG client with paper-local storage
+        rag_client = RAGClient(
+            persist_directory=chroma_dir,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
 
+        # Create pre-chunked documents with line number metadata
         documents = create_documents_from_markdown(
             md_path,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
 
-        num_chunks = client.embed_and_store(documents)
+        # Use a fixed collection name since each paper has its own DB
+        collection_name = "paper"
 
+        # Create index (skip chunking since documents are pre-chunked with line metadata)
+        rag_client.create_index(collection_name, documents, pre_chunked=True)
+
+        # Get chunk count
+        num_chunks = rag_client.get_collection_count(collection_name)
+
+        # Update metadata
         from ..metadata import update_metadata_steps
-        update_metadata_steps(md_path.parent, "embed")
+
+        update_metadata_steps(paper_dir, "embed")
 
         return {
+            "db_path": str(chroma_dir),
             "num_chunks": num_chunks,
             "success": True,
-            "message": f"Embedded {num_chunks} chunks (device={client.device})",
-            "device": client.device,
+            "message": f"Successfully embedded document into {num_chunks} chunks",
+            "device": rag_client.device,
         }
 
     except Exception as e:
         return {
+            "db_path": None,
             "num_chunks": 0,
             "success": False,
             "message": f"Embedding failed: {str(e)}",
@@ -69,12 +96,30 @@ def query_paper(
     query: str,
     top_k: int = 5,
 ) -> dict:
-    """Query a paper's embeddings via Vectorize."""
-    paper_name = Path(paper_dir).expanduser().resolve().name
+    """Query a paper's embeddings for similar content.
+
+    Args:
+        paper_dir: Path to the paper's directory (containing chroma/)
+        query: Search query
+        top_k: Number of results to return
+
+    Returns:
+        Dictionary with search results
+    """
+    paper_path = Path(paper_dir).expanduser().resolve()
+    chroma_dir = paper_path / "chroma"
+
+    if not chroma_dir.exists():
+        return {
+            "results": [],
+            "num_results": 0,
+            "success": False,
+            "message": f"No embeddings found in {paper_dir}",
+        }
 
     try:
-        client = VectorizeClient(paper_name=paper_name)
-        results = client.query(query, top_k)
+        rag_client = RAGClient(persist_directory=chroma_dir)
+        results = rag_client.query("paper", query, top_k)
 
         return {
             "results": results,

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from ..metadata import check_version_compatibility
-from ..utils.vectorize_client import query_all_papers
+from ..utils.chromadb_client import RAGClient
 from ..utils.markdown_parser import MarkdownParser
 
 
@@ -36,8 +36,7 @@ def _process_paper_if_needed(
         # Check for duplicate by content hash
         dup = find_duplicate(path, papers_dir=path.parent)
         if dup:
-            dup_dir = path.parent / dup
-            return dup_dir, None
+            return path.parent / dup, None
 
         paper_dir = get_output_dir(path)
 
@@ -277,48 +276,50 @@ def rag_search(
     paper_dirs: list[Path],
     top_k: int = 5,
 ) -> list[dict]:
-    """Perform semantic RAG search via Cloudflare Vectorize.
-
-    Searches across all papers in the shared vector index.
-    paper_dirs is used to scope results to the requested papers.
+    """Perform semantic RAG search using embeddings.
 
     Args:
         query: Search query
         paper_dirs: List of paper directories to search
-        top_k: Number of results
+        top_k: Number of results per paper
 
     Returns:
         List of matches with content, score, and metadata
     """
-    paper_names = {d.name for d in paper_dirs}
-
-    try:
-        raw_results = query_all_papers(query, top_k=top_k * 2)
-    except Exception:
-        return []
-
     results = []
-    for r in raw_results:
-        metadata = r.get("metadata", {})
-        paper_name = metadata.get("paper_name", "")
 
-        # Scope to requested papers
-        if paper_names and paper_name not in paper_names:
+    for paper_dir in paper_dirs:
+        chroma_dir = paper_dir / "chroma"
+
+        if not chroma_dir.exists():
             continue
 
-        result_entry = {
-            "paper_name": paper_name,
-            "content": r.get("text", ""),
-            "score": r.get("score", 0.0),
-            "header_context": metadata.get("header_path", ""),
-            "match_type": "rag",
-        }
-        if "start_line" in metadata:
-            result_entry["start_line"] = metadata["start_line"]
-        if "end_line" in metadata:
-            result_entry["end_line"] = metadata["end_line"]
-        results.append(result_entry)
+        try:
+            rag_client = RAGClient(persist_directory=chroma_dir)
+            raw_results = rag_client.query("paper", query, top_k)
 
+            for r in raw_results:
+                metadata = r.get("metadata", {})
+                result_entry = {
+                    "paper_dir": str(paper_dir),
+                    "paper_name": paper_dir.name,
+                    "source": metadata.get("source", str(paper_dir / "paper.md")),
+                    "content": r.get("text", ""),
+                    "score": r.get("score", 0.0),
+                    "header_context": metadata.get("header_path", ""),
+                    "match_type": "rag",
+                }
+                # Include line numbers if available (from pre-chunked documents)
+                if "start_line" in metadata:
+                    result_entry["start_line"] = metadata["start_line"]
+                if "end_line" in metadata:
+                    result_entry["end_line"] = metadata["end_line"]
+                results.append(result_entry)
+
+        except Exception:
+            continue
+
+    # Sort by score
     results.sort(key=lambda x: x.get("score", 0), reverse=True)
     return results[:top_k]
 

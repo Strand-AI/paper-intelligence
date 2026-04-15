@@ -3,6 +3,8 @@
 Provides AI agents with efficient, searchable access to PDF documents.
 PDFs are automatically processed on first search (1-3 minutes), then
 all subsequent searches are instant.
+
+Papers are synced to/from Cloudflare R2 via rclone for shared access.
 """
 
 from typing import Literal
@@ -50,9 +52,13 @@ def search(
     Returns:
         Search results with content, location, and relevance scores
     """
+    from .sync import pull
     from .tools.search import search as _search
 
-    return _search(
+    # Pull latest from R2 before searching
+    pull()
+
+    result = _search(
         query=query,
         sources=sources,
         mode=mode,
@@ -62,6 +68,13 @@ def search(
         include_context=include_context,
         use_llm=use_llm,
     )
+
+    # If any papers were auto-processed, push to R2
+    if result.get("processing_notes"):
+        from .sync import push
+        push()
+
+    return result
 
 
 @mcp.tool()
