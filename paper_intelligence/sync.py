@@ -13,7 +13,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 RCLONE_REMOTE = "r2:paper-intelligence"
-LOCAL_DIR = "~/Documents/papers"
+LOCAL_DIR = str(Path("~/Documents/papers").expanduser())
 RCLONE_CONF = Path.home() / ".config" / "rclone" / "rclone.conf"
 
 # 1Password paths for R2 credentials

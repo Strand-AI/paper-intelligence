@@ -2875,7 +2875,7 @@ wheels = [
 
 [[package]]
 name = "paper-intelligence"
-version = "0.2.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
