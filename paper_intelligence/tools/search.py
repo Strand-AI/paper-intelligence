@@ -27,7 +27,8 @@ def _process_paper_if_needed(
     Returns:
         Tuple of (paper_dir, error_message). If error, paper_dir is None.
     """
-    from .convert import convert_pdf, find_duplicate, get_output_dir
+    from .convert import find_duplicate, get_output_dir
+    from .fast_convert import convert_pdf_auto
     from .embed import embed_document
     from .index import index_markdown
 
@@ -50,7 +51,7 @@ def _process_paper_if_needed(
             # (Fall through to convert)
 
         # Convert PDF
-        result = convert_pdf(str(path), use_llm=use_llm)
+        result = convert_pdf_auto(str(path), use_llm=use_llm)
         if not result.get("success"):
             return None, f"PDF conversion failed: {result.get('message')}"
         paper_dir = Path(result["output_dir"])

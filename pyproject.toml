@@ -31,6 +31,8 @@ dependencies = [
     "llama-index-vector-stores-chroma>=0.1.0",
     "pydantic>=2.0.0",
     "torch>=2.0.0",
+    "pdf-inspector>=0.2.6",
+    "pymupdf>=1.24.0",
 ]
 
 [project.urls]
