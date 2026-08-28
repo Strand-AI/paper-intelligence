@@ -104,119 +104,50 @@ Any MCP-compatible client can use paper-intelligence:
 
 ## 📖 MCP Tools
 
-### `process_paper`
-
-<details>
-<summary>Full pipeline: Convert PDF → Index headers → Create embeddings</summary>
-
-**Parameters:**
-- `pdf_path` (string): Path to PDF file
-- `use_llm` (boolean, optional): Enhanced accuracy mode (default: false)
-- `chunk_size` (integer, optional): Text chunk size for embedding (default: 512)
-- `chunk_overlap` (integer, optional): Overlap between chunks (default: 50)
-
-**Example:**
-```
-Process the paper at ~/Downloads/attention-is-all-you-need.pdf
-```
-
-**Output Structure:**
-```
-attention-is-all-you-need/
-├── attention-is-all-you-need.md   # Converted markdown
-├── metadata.json                   # Processing version info
-├── index.json                      # Header hierarchy
-├── chroma/                         # Embeddings database
-└── images/                         # Extracted figures
-```
-
-</details>
-
 ### `search`
 
-<details>
-<summary>Unified search with grep and/or semantic RAG</summary>
+Search one or more explicitly requested PDFs, processed paper directories, or library
+directories with `grep`, `rag`, or `hybrid` mode. Direct PDF searches never inspect
+sibling files or directories.
 
 **Parameters:**
-- `query` (string): Search query (text, regex, or semantic)
-- `paper_dirs` (array): List of paper directories to search
+- `query` (string): Text, regex, or semantic query
+- `sources` (array): PDF paths, paper directories, or an explicitly selected library directory
 - `mode` (string, optional): `"grep"`, `"rag"`, or `"hybrid"` (default: hybrid)
 - `top_k` (integer, optional): Number of results (default: 5)
-- `regex` (boolean, optional): Treat query as regex (default: false)
+- `regex` (boolean, optional): Treat the grep query as a regex (default: false)
 
-**Example Queries:**
-```
-# Semantic search across papers
-Search for "attention mechanism implementation" in my processed papers
+A new or incomplete PDF is converted, indexed, and embedded in the background because
+this normally takes **1–3 minutes**, longer than the roughly 30-second deadline used by
+many MCP clients. The first call returns promptly:
 
-# Exact text search
-Search for "transformer" using grep mode
-
-# Regex search
-Search for "BERT|GPT|T5" with regex enabled
-```
-
-**Returns:** Results with line numbers, surrounding context, and header location.
-
-</details>
-
-### `convert_pdf`
-
-<details>
-<summary>Convert PDF to Markdown (without embeddings)</summary>
-
-**Parameters:**
-- `pdf_path` (string): Path to PDF file
-- `output_dir` (string, optional): Custom output directory
-- `use_llm` (boolean, optional): Enhanced accuracy mode
-
-**Returns:** `markdown_path`, `images_dir`, `image_count`
-
-</details>
-
-### `get_paper_info`
-
-<details>
-<summary>Check processing status of a paper</summary>
-
-**Parameters:**
-- `paper_dir` (string): Path to paper directory
-
-**Example Response:**
 ```json
 {
-  "has_markdown": true,
-  "has_index": true,
-  "has_embeddings": true,
-  "has_images": true,
-  "image_count": 12,
-  "version": "0.2.0",
-  "processed_at": "2025-01-15T10:30:00Z"
+  "success": true,
+  "status": "processing",
+  "message": "First-use processing ... is continuing in the background.",
+  "processing": [{
+    "paper_dir": "/path/to/paper",
+    "retry_after_seconds": 30,
+    "next_step": "Call get_paper_info ..."
+  }]
 }
 ```
 
-</details>
+Processing continues after that response. Poll `get_paper_info` using `paper_dir`; when
+it reports `status: "ready"`, retry the original search. Already-processed grep searches
+do not initialize the semantic model. RAG and hybrid searches initialize it when needed.
+Search no longer performs an unconditional remote-library sync, which previously allowed
+a local query to block for up to five minutes.
 
-### `index_markdown` / `embed_document`
+### `get_paper_info`
 
-<details>
-<summary>Individual pipeline steps (for advanced use)</summary>
+Check a paper's processing state without loading the embedding model. Pass either the
+paper directory returned by `search` or the original PDF path.
 
-**`index_markdown`** — Extract header hierarchy into searchable JSON
-```python
-index_markdown(markdown_path="~/Downloads/paper/paper.md")
-```
-
-**`embed_document`** — Create embeddings for semantic search
-```python
-embed_document(
-    markdown_path="~/Downloads/paper/paper.md",
-    chunk_size=512,
-    chunk_overlap=50
-)
-```
-
-</details>
+Statuses are `queued`, `processing`, `ready`, `incomplete`, or `failed`. Failed responses
+include the background job's error message. A ready response includes artifact presence,
+metadata, and a lightweight local chunk count when available.
 
 ## 📊 Example Output
 
