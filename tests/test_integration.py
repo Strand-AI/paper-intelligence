@@ -399,12 +399,22 @@ class TestAutoProcessing:
         )
 
         assert result["success"]
-        # Should have processing notes about the PDF
-        assert "processing_notes" in result or result["num_results"] > 0
+        assert result["status"] == "processing"
+        assert result["processing"][0]["retry_after_seconds"] == 30
 
-        # Paper directory should now exist
+        # Processing continues independently of the first MCP response.
         paper_dir = temp_output_dir / "test_auto"
-        assert paper_dir.exists()
+        from paper_intelligence.tools.search import _PROCESSING_JOBS
+        _PROCESSING_JOBS[str(paper_dir)].result(timeout=300)
+
+        completed = search(
+            query="the",
+            sources=[str(pdf_copy)],
+            mode="grep",
+            top_k=5,
+        )
+        assert completed["status"] == "ready"
+        assert completed["num_results"] > 0
         assert (paper_dir / "paper.md").exists()
         assert (paper_dir / "index.json").exists()
         assert (paper_dir / "chroma").exists()

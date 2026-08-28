@@ -1,10 +1,8 @@
 """Paper Intelligence MCP Server.
 
 Provides AI agents with efficient, searchable access to PDF documents.
-PDFs are automatically processed on first search (1-3 minutes), then
-all subsequent searches are instant.
-
-Papers are synced to/from Cloudflare R2 via rclone for shared access.
+First-use PDF processing runs in the background (normally 1-3 minutes), so
+search returns promptly with observable status instead of exceeding MCP deadlines.
 """
 
 from typing import Literal
@@ -16,9 +14,10 @@ mcp = FastMCP(
     "paper-intelligence",
     instructions=(
         "Search PDF documents efficiently. "
-        "Pass PDF paths directly to search - they're auto-processed on first use "
-        "(takes 1-3 minutes, then instant). "
-        "Use get_paper_info to check processing status."
+        "Pass PDF paths directly to search. First use queues 1-3 minute background "
+        "processing and returns status='processing'; call get_paper_info on the returned "
+        "paper_dir until status='ready', then retry search. Searches inspect only the "
+        "sources explicitly supplied."
     ),
 )
 
@@ -36,8 +35,9 @@ def search(
 ) -> dict:
     """Search PDF documents and paper directories.
 
-    PDFs are automatically processed on first use (1-3 minutes per PDF).
-    Subsequent searches are instant.
+    First use queues background processing (normally 1-3 minutes) and returns
+    status="processing" promptly. Processing continues after the tool call returns.
+    Call get_paper_info with the returned paper_dir and retry when status="ready".
 
     Args:
         query: Search query (text, regex pattern, or semantic query)
@@ -52,13 +52,12 @@ def search(
     Returns:
         Search results with content, location, and relevance scores
     """
-    from .sync import pull
     from .tools.search import search as _search
 
-    # Pull latest from R2 before searching
-    pull()
-
-    result = _search(
+    # Search is deliberately local and bounded. The previous unconditional whole-
+    # library R2 pull could block every query for five minutes, even when all requested
+    # sources were already indexed.
+    return _search(
         query=query,
         sources=sources,
         mode=mode,
@@ -69,20 +68,13 @@ def search(
         use_llm=use_llm,
     )
 
-    # If any papers were auto-processed, push to R2
-    if result.get("processing_notes"):
-        from .sync import push
-        push()
-
-    return result
-
 
 @mcp.tool()
 def get_paper_info(paper_dir: str) -> dict:
-    """Check processing status of a paper directory.
+    """Check processing status without loading the embedding model.
 
     Args:
-        paper_dir: Path to paper directory
+        paper_dir: Paper directory, or the original PDF path
 
     Returns:
         Processing status and metadata
