@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-28
+
 ### Changed
 - First-use PDF conversion and embedding now run as an observable background job; `search` returns promptly with polling instructions instead of exceeding MCP client deadlines.
 - `get_paper_info` reports queued, processing, ready, incomplete, or failed state without initializing the embedding model.
