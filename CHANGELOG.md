@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-28
+
+### Fixed
+- Pin the MCP Python SDK below v2 because the server uses the v1 FastMCP API; clean installs no longer resolve an incompatible SDK that crashes at startup.
+- CI now launches the CLI from a freshly built wheel without relying on the repository lockfile.
+
 ## [0.5.1] - 2026-08-28
 
 ### Fixed

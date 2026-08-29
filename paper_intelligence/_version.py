@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 # Version compatibility rules:
 # - Major version change = incompatible, must re-process

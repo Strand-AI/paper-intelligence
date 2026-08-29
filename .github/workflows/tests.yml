@@ -32,6 +32,12 @@ jobs:
       - name: Run tests (skip slow integration tests)
         run: uv run pytest tests/ -v --tb=short --ignore=tests/test_integration.py
 
+      - name: Smoke-test wheel with clean dependency resolution
+        run: |
+          uv build --wheel --out-dir dist-smoke
+          WHEEL=$(find dist-smoke -name '*.whl' -print -quit)
+          timeout 30s uvx --refresh --from "$WHEEL" paper-intelligence </dev/null
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
