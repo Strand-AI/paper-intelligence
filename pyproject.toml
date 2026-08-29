@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Text Processing :: Indexing",
 ]
 dependencies = [
-    "mcp[cli]>=1.0.0",
+    "mcp[cli]>=1.0.0,<2",
     "marker-pdf>=1.0.0",
     "chromadb>=0.4.0",
     "llama-index-core>=0.10.0",
