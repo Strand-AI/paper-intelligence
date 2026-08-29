@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-28
+
+### Fixed
+- Runtime `paper_intelligence.__version__` now matches the released package version, with Hatch configured to use it as the single version source.
+
 ## [0.5.0] - 2026-08-28
 
 ### Changed
