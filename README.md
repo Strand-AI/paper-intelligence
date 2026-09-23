@@ -134,11 +134,16 @@ many MCP clients. The first call returns promptly:
 }
 ```
 
-Processing continues after that response. Poll `get_paper_info` using `paper_dir`; when
-it reports `status: "ready"`, retry the original search. Already-processed grep searches
-do not initialize the semantic model. RAG and hybrid searches initialize it when needed.
-Search no longer performs an unconditional remote-library sync, which previously allowed
-a local query to block for up to five minutes.
+Processing runs in a detached process and continues after that response without blocking
+status calls. Poll `get_paper_info` using `paper_dir`; when it reports `status: "ready"`,
+retry the original search. Already-processed grep searches do not initialize the semantic
+model. RAG and hybrid searches initialize one shared model per call when needed.
+
+To keep collection-wide calls below normal MCP deadlines, semantic search accepts at most
+20 paper directories per call. A broader `hybrid` call returns bounded grep results with
+`status: "partial"` and an explicit `semantic_search.status: "skipped_source_limit"`;
+select up to 20 papers for semantic retrieval. Search no longer performs an unconditional
+remote-library sync, which previously allowed a local query to block for up to five minutes.
 
 ### `get_paper_info`
 

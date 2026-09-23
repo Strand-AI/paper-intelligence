@@ -46,6 +46,7 @@ class RAGClient:
         model_name: Optional[str] = None,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+        embed_model=None,
     ):
         """Initialize RAG client with persistent ChromaDB storage.
 
@@ -54,6 +55,7 @@ class RAGClient:
             model_name: HuggingFace embedding model name
             chunk_size: Size of text chunks for embedding
             chunk_overlap: Overlap between chunks
+            embed_model: Existing embedding model to reuse across paper databases
         """
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
@@ -64,10 +66,12 @@ class RAGClient:
         self.device = get_device()
 
         # Initialize embedding model with GPU support
-        self.embed_model = HuggingFaceEmbedding(
-            model_name=self.model_name,
-            device=self.device,
-        )
+        self.embed_model = embed_model
+        if self.embed_model is None:
+            self.embed_model = HuggingFaceEmbedding(
+                model_name=self.model_name,
+                device=self.device,
+            )
 
         # Set global settings (no LLM needed for embedding/retrieval only)
         Settings.embed_model = self.embed_model
