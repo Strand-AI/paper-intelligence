@@ -17,7 +17,8 @@ mcp = FastMCP(
         "Pass PDF paths directly to search. First use queues 1-3 minute background "
         "processing and returns status='processing'; call get_paper_info on the returned "
         "paper_dir until status='ready', then retry search. Searches inspect only the "
-        "sources explicitly supplied."
+        "sources explicitly supplied. Semantic search is limited to 20 papers per call; "
+        "broader hybrid searches return collection-wide grep results and a partial status."
     ),
 )
 
@@ -48,6 +49,9 @@ def search(
         regex: Treat query as regex for grep
         include_context: Include surrounding lines in results
         use_llm: Use LLM for better PDF conversion (slower)
+
+    Semantic retrieval is limited to 20 ready papers per call. Broader hybrid
+    searches return bounded grep results plus an explicit partial status.
 
     Returns:
         Search results with content, location, and relevance scores

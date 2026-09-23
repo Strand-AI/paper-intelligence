@@ -5,10 +5,14 @@ import os
 from pathlib import Path
 from typing import Optional
 
-# Set device preference for Apple Silicon MPS
-if not os.environ.get("TORCH_DEVICE"):
+
+def _set_device_preference() -> None:
+    """Choose an accelerator only inside the detached conversion worker."""
+    if os.environ.get("TORCH_DEVICE"):
+        return
     try:
         import torch
+
         if torch.backends.mps.is_available():
             os.environ["TORCH_DEVICE"] = "mps"
         elif torch.cuda.is_available():
@@ -87,6 +91,8 @@ def convert_pdf(
         - message: Status message
         - images_dir: Path to extracted images (if any)
     """
+    _set_device_preference()
+
     from marker.converters.pdf import PdfConverter
     from marker.models import create_model_dict
     from marker.output import text_from_rendered

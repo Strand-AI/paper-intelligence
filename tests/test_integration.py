@@ -8,6 +8,7 @@ Run locally with:
 """
 
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -391,13 +392,16 @@ class TestAutoProcessing:
         pdf_copy = temp_output_dir / "test_auto.pdf"
         shutil.copy(SAMPLE_PDF, pdf_copy)
 
+        started_at = time.monotonic()
         result = search(
             query="the",
             sources=[str(pdf_copy)],
             mode="grep",
             top_k=5,
         )
+        first_response_seconds = time.monotonic() - started_at
 
+        assert first_response_seconds < 5
         assert result["success"]
         assert result["status"] == "processing"
         assert result["processing"][0]["retry_after_seconds"] == 30
@@ -405,7 +409,8 @@ class TestAutoProcessing:
         # Processing continues independently of the first MCP response.
         paper_dir = temp_output_dir / "test_auto"
         from paper_intelligence.tools.search import _PROCESSING_JOBS
-        _PROCESSING_JOBS[str(paper_dir)].result(timeout=300)
+        process = _PROCESSING_JOBS[str(paper_dir)]
+        assert process.wait(timeout=300) == 0
 
         completed = search(
             query="the",

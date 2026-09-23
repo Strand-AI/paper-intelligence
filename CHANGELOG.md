@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- First-use processing now runs in a detached subprocess so Marker/Torch startup cannot block the MCP request loop; status responses include an ETA and retry interval.
+- Hybrid collection searches remain bounded: grep covers the collection, while semantic fanout above 20 papers returns an explicit partial status instead of risking a client timeout.
+- Scoped semantic searches reuse one embedding model across paper databases.
+
+### Fixed
+- Direct PDF lookup and status checks no longer import Torch just to derive an output path.
+- Direct PDF lookup never scans sibling directories, and explicitly requested library scans skip unreadable children.
+
 ## [0.5.2] - 2026-08-28
 
 ### Fixed

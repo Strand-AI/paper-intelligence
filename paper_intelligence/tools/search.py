@@ -8,8 +8,9 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
+import sys
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
@@ -18,8 +19,10 @@ from ..metadata import check_version_compatibility
 from ..utils.markdown_parser import MarkdownParser
 
 PROCESSING_STATE_FILENAME = ".paper-intelligence-processing.json"
-_PROCESSING_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="paper-processing")
-_PROCESSING_JOBS: dict[str, Future] = {}
+PROCESSING_RETRY_AFTER_SECONDS = 30
+PROCESSING_ETA = "usually 1-3 minutes"
+MAX_SEMANTIC_PAPERS = 20
+_PROCESSING_JOBS: dict[str, subprocess.Popen] = {}
 _PROCESSING_LOCK = threading.Lock()
 
 
@@ -134,7 +137,9 @@ def _read_processing_state(paper_dir: Path) -> Optional[dict]:
 def _write_processing_state(paper_dir: Path, state: dict) -> None:
     paper_dir.mkdir(parents=True, exist_ok=True)
     state_path = _processing_state_path(paper_dir)
-    temporary_path = state_path.with_suffix(f"{state_path.suffix}.tmp")
+    temporary_path = state_path.with_name(
+        f".{state_path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    )
     temporary_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
     temporary_path.replace(state_path)
 
@@ -154,7 +159,9 @@ def _run_processing_job(source: Path, paper_dir: Path, use_llm: bool) -> None:
         "paper_dir": str(paper_dir),
         "started_at": started_at,
         "worker_pid": os.getpid(),
-        "message": "PDF processing is running in the background.",
+        "estimated_completion": PROCESSING_ETA,
+        "retry_after_seconds": PROCESSING_RETRY_AFTER_SECONDS,
+        "message": "PDF processing is running in a detached background process.",
     })
 
     try:
@@ -186,36 +193,111 @@ def _run_processing_job(source: Path, paper_dir: Path, use_llm: bool) -> None:
         })
 
 
-def _schedule_processing(source: Path, paper_dir: Path, use_llm: bool) -> dict:
-    """Start or resume one background processing job and return observable status."""
-    key = str(paper_dir)
-    with _PROCESSING_LOCK:
-        future = _PROCESSING_JOBS.get(key)
-        if future is None or future.done():
-            queued_at = datetime.now(timezone.utc).isoformat()
-            _write_processing_state(paper_dir, {
-                "status": "queued",
-                "source": str(source),
-                "paper_dir": key,
-                "queued_at": queued_at,
-                "message": "PDF processing is queued and will continue after this call returns.",
-            })
-            _PROCESSING_JOBS[key] = _PROCESSING_EXECUTOR.submit(
-                _run_processing_job, source, paper_dir, use_llm
-            )
+def _pid_is_running(pid: object) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, TypeError, ValueError):
+        return False
+    return True
 
-    state = _read_processing_state(paper_dir) or {}
+
+def _processing_is_active(key: str, state: Optional[dict]) -> bool:
+    process = _PROCESSING_JOBS.get(key)
+    if process is not None and process.poll() is None:
+        return True
+    return bool(
+        state
+        and state.get("status") in {"queued", "processing"}
+        and _pid_is_running(state.get("worker_pid"))
+    )
+
+
+def _start_processing_process(source: Path, paper_dir: Path, use_llm: bool) -> subprocess.Popen:
+    """Launch heavy PDF work outside the MCP process.
+
+    Marker and Torch initialization can monopolize an in-process worker long enough
+    that even the original tool response and status calls miss the MCP deadline.
+    A detached interpreter keeps the MCP request loop responsive and lets processing
+    survive a client timeout or server reconnect.
+    """
+    command = [
+        sys.executable,
+        "-m",
+        "paper_intelligence.processing_worker",
+        "--source",
+        str(source),
+        "--paper-dir",
+        str(paper_dir),
+    ]
+    if use_llm:
+        command.append("--use-llm")
+    return subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        start_new_session=True,
+    )
+
+
+def _status_response(source: Path, paper_dir: Path, state: dict) -> dict:
+    key = str(paper_dir)
     return {
         **state,
         "status": state.get("status", "queued"),
         "source": str(source),
         "paper_dir": key,
-        "retry_after_seconds": 30,
+        "estimated_completion": PROCESSING_ETA,
+        "retry_after_seconds": PROCESSING_RETRY_AFTER_SECONDS,
         "next_step": (
-            f"Call get_paper_info with paper_dir={key!r}; when status is 'ready', "
+            f"Call get_paper_info with paper_dir={key!r} in "
+            f"{PROCESSING_RETRY_AFTER_SECONDS} seconds; when status is 'ready', "
             "retry search with the original source."
         ),
     }
+
+
+def _schedule_processing(source: Path, paper_dir: Path, use_llm: bool) -> dict:
+    """Start or resume one detached processing job and return immediately."""
+    key = str(paper_dir)
+    with _PROCESSING_LOCK:
+        state = _read_processing_state(paper_dir)
+        if _processing_is_active(key, state):
+            return _status_response(source, paper_dir, state or {})
+
+        queued_state = {
+            "status": "queued",
+            "source": str(source),
+            "paper_dir": key,
+            "queued_at": datetime.now(timezone.utc).isoformat(),
+            "estimated_completion": PROCESSING_ETA,
+            "retry_after_seconds": PROCESSING_RETRY_AFTER_SECONDS,
+            "message": (
+                "PDF processing has started in a detached background process and "
+                "will continue after this call returns."
+            ),
+        }
+        _write_processing_state(paper_dir, queued_state)
+        try:
+            process = _start_processing_process(source, paper_dir, use_llm)
+        except OSError as exc:
+            failed_state = {
+                **queued_state,
+                "status": "failed",
+                "message": f"Could not start background processing: {exc}",
+            }
+            _write_processing_state(paper_dir, failed_state)
+            return _status_response(source, paper_dir, failed_state)
+        _PROCESSING_JOBS[key] = process
+        queued_state["worker_pid"] = process.pid
+        persisted_state = _read_processing_state(paper_dir)
+        if not persisted_state or persisted_state.get("status") == "queued":
+            _write_processing_state(paper_dir, queued_state)
+        else:
+            # The child may already have advanced the state to "processing".
+            queued_state = persisted_state
+        return _status_response(source, paper_dir, queued_state)
 
 
 def _find_paper_dirs(
@@ -263,10 +345,23 @@ def _find_paper_dirs(
         # Directory discovery is limited to the directory explicitly supplied by the
         # caller and its immediate paper children.
         if path.is_dir():
-            candidates = [path] if (path / "paper.md").exists() else [
-                subdir for subdir in path.iterdir()
-                if subdir.is_dir() and (subdir / "paper.md").exists()
-            ]
+            if (path / "paper.md").exists():
+                candidates = [path]
+            else:
+                candidates = []
+                try:
+                    children = path.iterdir()
+                    for subdir in children:
+                        try:
+                            if subdir.is_dir() and (subdir / "paper.md").exists():
+                                candidates.append(subdir)
+                        except OSError:
+                            # An explicitly selected library may contain unreadable
+                            # siblings; one sibling must not abort discovery of others.
+                            continue
+                except OSError:
+                    pass
+
             for candidate in candidates:
                 if _is_fully_processed(candidate) or not auto_process:
                     paper_dirs.append(candidate)
@@ -283,6 +378,7 @@ def grep_search(
     paper_dirs: list[Path],
     case_sensitive: bool = False,
     regex: bool = False,
+    max_results: Optional[int] = None,
 ) -> list[dict]:
     """Perform grep-style text search across paper markdown files.
 
@@ -359,11 +455,19 @@ def grep_search(
                         "header_context": header_context,
                         "match_type": "grep",
                     })
+                    if max_results is not None and len(results) >= max_results:
+                        return results
 
         except Exception:
             continue
 
     return results
+
+
+def _get_rag_client_class():
+    from ..utils.chromadb_client import RAGClient
+
+    return RAGClient
 
 
 def rag_search(
@@ -381,9 +485,10 @@ def rag_search(
     Returns:
         List of matches with content, score, and metadata
     """
-    from ..utils.chromadb_client import RAGClient
+    RAGClient = _get_rag_client_class()
 
     results = []
+    embed_model = None
 
     for paper_dir in paper_dirs:
         chroma_dir = paper_dir / "chroma"
@@ -392,7 +497,11 @@ def rag_search(
             continue
 
         try:
-            rag_client = RAGClient(persist_directory=chroma_dir)
+            rag_client = RAGClient(
+                persist_directory=chroma_dir,
+                embed_model=embed_model,
+            )
+            embed_model = rag_client.embed_model
             raw_results = rag_client.query("paper", query, top_k)
 
             for r in raw_results:
@@ -487,16 +596,30 @@ def search(
                 paper_dirs=dirs,
                 case_sensitive=case_sensitive,
                 regex=regex,
+                max_results=top_k * 2 if mode == "hybrid" else top_k,
             )
             results.extend(grep_results)
 
+        semantic_status = None
         if mode in ("rag", "hybrid"):
-            rag_results = rag_search(
-                query=query,
-                paper_dirs=dirs,
-                top_k=top_k,
-            )
-            results.extend(rag_results)
+            if len(dirs) > MAX_SEMANTIC_PAPERS:
+                semantic_status = {
+                    "status": "skipped_source_limit",
+                    "papers_requested": len(dirs),
+                    "max_papers": MAX_SEMANTIC_PAPERS,
+                    "message": (
+                        "Semantic search was skipped to keep this MCP call bounded. "
+                        f"Select at most {MAX_SEMANTIC_PAPERS} paper directories for "
+                        "RAG, or use grep mode for the whole collection."
+                    ),
+                }
+            else:
+                rag_results = rag_search(
+                    query=query,
+                    paper_dirs=dirs,
+                    top_k=top_k,
+                )
+                results.extend(rag_results)
 
         # Deduplicate by content similarity
         if mode == "hybrid":
@@ -530,13 +653,21 @@ def search(
             "mode": mode,
             "success": True,
         }
-        if processing_jobs:
+        if semantic_status:
+            result["semantic_search"] = semantic_status
+        if processing_jobs or semantic_status:
             result["status"] = "partial"
-            result["processing"] = processing_jobs
-            result["message"] = (
-                "Searched ready sources; remaining first-use processing continues in "
-                "the background."
-            )
+            if processing_jobs:
+                result["processing"] = processing_jobs
+            messages = []
+            if processing_jobs:
+                messages.append(
+                    "Searched ready sources; remaining first-use processing continues "
+                    "in the background."
+                )
+            if semantic_status:
+                messages.append(semantic_status["message"])
+            result["message"] = " ".join(messages)
         else:
             result["status"] = "ready"
         return result
@@ -627,6 +758,16 @@ def get_paper_info(paper_dir: str) -> dict:
     if processing and processing.get("status") in {"queued", "processing", "failed"}:
         info["processing"] = processing
         info["status"] = processing["status"]
+        if (
+            info["status"] in {"queued", "processing"}
+            and processing.get("worker_pid")
+            and not _processing_is_active(str(path), processing)
+        ):
+            info["status"] = "stalled"
+            info["message"] = (
+                "The background worker stopped before processing completed. Retry "
+                "search to start a new worker."
+            )
     elif (
         info["has_markdown"]
         and info["has_index"]
